@@ -22,9 +22,8 @@ export default function StarTooltip({
         className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-lg border border-white/10 bg-black/65 px-3 py-2 shadow-xl backdrop-blur-md"
         style={{ left: position.x, top: position.y - 12 }}
       >
-        <p className="text-xs font-medium text-amber-50/90">Collection Core</p>
-        <p className="mt-0.5 text-[10px] text-white/45">
-          Reserved for Burned Normies
+        <p className="text-xs font-medium text-amber-50/90">
+          The Pyre · 1,839 Normies burned
         </p>
       </div>
     );
