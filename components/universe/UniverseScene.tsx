@@ -12,18 +12,21 @@ import CentralCore from "@/components/universe/CentralCore";
 import CosmicDust from "@/components/universe/CosmicDust";
 import GalaxyAtmosphere from "@/components/universe/GalaxyAtmosphere";
 import HolderGroupStars from "@/components/universe/HolderGroupStars";
+import OuterHolderStars from "@/components/universe/OuterHolderStars";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
 import InfoPanel from "@/components/ui/InfoPanel";
 import SearchBar from "@/components/ui/SearchBar";
 import {
   assignHoldersToStars,
+  buildOuterHolderStars,
   countClickableStars,
+  findHolderByWallet,
   getHolderGroups,
   verifyAssignment,
 } from "@/lib/universe";
 import type { RankedHolder } from "@/lib/opensea/holders";
-import type { CameraTarget, HolderGroupStar } from "@/types/universe";
+import type { CameraTarget, HolderGroupStar, OuterHolderStar } from "@/types/universe";
 
 const CLICKABLE_STAR_COUNT = countClickableStars(getHolderGroups());
 
@@ -52,11 +55,14 @@ function useIsMobile() {
 
 function SceneContent({
   holderGroups,
+  outerStars,
   hoveredId,
   selectedGroup,
   hoveredCore,
   selectedCore,
   cameraTarget,
+  pulseWallet,
+  pulseKey,
   reducedMotion,
   isMobile,
   controlsRef,
@@ -66,11 +72,14 @@ function SceneContent({
   onCoreClick,
 }: {
   holderGroups: HolderGroupStar[];
+  outerStars: OuterHolderStar[];
   hoveredId: string | null;
   selectedGroup: HolderGroupStar | null;
   hoveredCore: boolean;
   selectedCore: boolean;
   cameraTarget: CameraTarget;
+  pulseWallet: string | null;
+  pulseKey: number;
   reducedMotion: boolean;
   isMobile: boolean;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
@@ -106,6 +115,11 @@ function SceneContent({
           particleHalo: layerDebug.galaxyParticleHalo,
         }}
       />
+      <OuterHolderStars
+        stars={outerStars}
+        pulseWallet={pulseWallet}
+        pulseKey={pulseKey}
+      />
       {layerDebug.cosmicDust ? <CosmicDust /> : null}
       <CentralCore
         isHovered={hoveredCore}
@@ -119,6 +133,8 @@ function SceneContent({
         groups={holderGroups}
         hoveredId={hoveredId}
         selectedId={selectedGroup?.id ?? null}
+        pulseWallet={pulseWallet}
+        pulseKey={pulseKey}
         reducedMotion={reducedMotion}
         debugLayers={{
           visible: layerDebug.holderStarVisible,
@@ -189,6 +205,7 @@ export default function UniverseScene() {
   const [holderGroups, setHolderGroups] = useState<HolderGroupStar[]>(() =>
     getHolderGroups(),
   );
+  const [outerStars, setOuterStars] = useState<OuterHolderStar[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,12 +221,14 @@ export default function UniverseScene() {
           getHolderGroups(),
           data.rankedHolders,
         );
+        const outer = buildOuterHolderStars(data.rankedHolders);
         setHolderGroups(assigned);
+        setOuterStars(outer);
 
         if (process.env.NODE_ENV === "development") {
           const check = verifyAssignment(assigned);
           console.info(
-            `[Normie Universe] N=${CLICKABLE_STAR_COUNT} stars mapped to top holders`,
+            `[Normie Universe] N=${CLICKABLE_STAR_COUNT} top holder stars; ${outer.length} outer holder stars`,
             check,
           );
         }
@@ -233,12 +252,16 @@ export default function UniverseScene() {
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
     null,
   );
+  const [searchTarget, setSearchTarget] = useState<CameraTarget | null>(null);
+  const [pulseWallet, setPulseWallet] = useState<string | null>(null);
+  const [pulseKey, setPulseKey] = useState(0);
 
   const cameraTarget: CameraTarget = useMemo(() => {
+    if (searchTarget) return searchTarget;
     if (selectedGroup) return { type: "group", group: selectedGroup };
     if (selectedCore) return { type: "core" };
     return { type: "overview" };
-  }, [selectedGroup, selectedCore]);
+  }, [searchTarget, selectedGroup, selectedCore]);
 
   const handleHover = useCallback(
     (group: HolderGroupStar | null, screenPos?: { x: number; y: number }) => {
@@ -252,6 +275,7 @@ export default function UniverseScene() {
   const handleSelect = useCallback((group: HolderGroupStar) => {
     setSelectedGroup(group);
     setSelectedCore(false);
+    setSearchTarget(null);
     setHoveredGroup(null);
     setTooltipPos(null);
   }, []);
@@ -272,6 +296,7 @@ export default function UniverseScene() {
   const handleCoreClick = useCallback(() => {
     setSelectedCore(true);
     setSelectedGroup(null);
+    setSearchTarget(null);
     setHoveredGroup(null);
     setTooltipPos(null);
   }, []);
@@ -279,7 +304,27 @@ export default function UniverseScene() {
   const handleBack = useCallback(() => {
     setSelectedGroup(null);
     setSelectedCore(false);
+    setSearchTarget(null);
   }, []);
+
+  const handleSearch = useCallback(
+    (query: string) => {
+      const match = findHolderByWallet(query, holderGroups, outerStars);
+      if (!match) return;
+
+      const wallet =
+        match.kind === "top75"
+          ? (match.star.wallet ?? match.star.id)
+          : match.star.wallet;
+
+      setSearchTarget({ type: "search", position: match.star.position });
+      setSelectedGroup(null);
+      setSelectedCore(false);
+      setPulseWallet(wallet);
+      setPulseKey((k) => k + 1);
+    },
+    [holderGroups, outerStars],
+  );
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black">
@@ -297,7 +342,10 @@ export default function UniverseScene() {
       >
         <SceneContent
           holderGroups={holderGroups}
+          outerStars={outerStars}
           hoveredId={hoveredGroup?.id ?? null}
+          pulseWallet={pulseWallet}
+          pulseKey={pulseKey}
           selectedGroup={selectedGroup}
           hoveredCore={hoveredCore}
           selectedCore={selectedCore}
@@ -321,7 +369,7 @@ export default function UniverseScene() {
             A living map of the Normies holder galaxy
           </p>
         </header>
-        <SearchBar />
+        <SearchBar onSearch={handleSearch} />
       </div>
 
       <StarTooltip

@@ -37,10 +37,13 @@ export default function CameraRig({
     let camPos = OVERVIEW_POSITION.clone();
     let lookAt = OVERVIEW_TARGET.clone();
 
-    if (cameraTarget.type === "group") {
-      const [gx, gy, gz] = cameraTarget.group.position;
+    if (cameraTarget.type === "group" || cameraTarget.type === "search") {
+      const [gx, gy, gz] =
+        cameraTarget.type === "group"
+          ? cameraTarget.group.position
+          : cameraTarget.position;
       lookAt = new THREE.Vector3(gx, gy, gz);
-      const dir = new THREE.Vector3(gx, gy + 4, gz + 16)
+      const dir = new THREE.Vector3(gx * 0.08, gy + 4, gz + 16)
         .sub(lookAt)
         .normalize()
         .multiplyScalar(20);
@@ -74,7 +77,7 @@ export default function CameraRig({
     if (
       reducedMotion ||
       animating.current ||
-      cameraTarget.type !== "overview"
+      cameraTarget.type !== "overview" && cameraTarget.type !== "search"
     ) {
       return;
     }

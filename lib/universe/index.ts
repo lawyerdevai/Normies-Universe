@@ -10,3 +10,6 @@ export {
   normieRangeFromStars,
 } from "./holderStarVisual";
 export { placeTopHolderStar } from "./placeTopHolderStar";
+export { buildOuterHolderStars } from "./buildOuterHolderStars";
+export { placeOuterHolderStar } from "./placeOuterHolderStar";
+export { findHolderByWallet } from "./searchHolderStars";

@@ -27,10 +27,26 @@ export type AmbientStar = {
   color: string;
 };
 
+export type OuterHolderStar = {
+  id: string;
+  wallet: string;
+  walletDisplay: string;
+  collectionRank: number;
+  normieCount: number;
+  position: [number, number, number];
+  distanceFromCenter: number;
+  screenPixels: number;
+  opacity: number;
+  color: [number, number, number];
+  twinklePhase: number;
+  twinkleSpeed: number;
+};
+
 export type CameraTarget =
   | { type: "overview" }
   | { type: "group"; group: HolderGroupStar }
-  | { type: "core" };
+  | { type: "core" }
+  | { type: "search"; position: [number, number, number] };
 
 export type UniverseSceneState = {
   hoveredGroup: HolderGroupStar | null;
