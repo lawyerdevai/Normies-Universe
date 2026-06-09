@@ -2,29 +2,47 @@ import type { HolderGroupTier } from "@/types/universe";
 import { clamp01, createRng, lerp } from "./seededRandom";
 import { generateStarPosition, tierFromRank } from "./generateStarPositions";
 
-const TOTAL_HOLDERS = 1891;
-const GROUP_COUNT = 189;
+export const TOTAL_HOLDERS = 1891;
 const DATA_SEED = 77231;
 
 export type RankRange = { rankStart: number; rankEnd: number };
 
-export function buildRankRanges(): RankRange[] {
-  const ranges: RankRange[] = [
-    { rankStart: 1, rankEnd: 3 },
-    { rankStart: 4, rankEnd: 7 },
-    { rankStart: 8, rankEnd: 10 },
-  ];
-
-  let cursor = 11;
-  for (let g = 4; g <= GROUP_COUNT; g++) {
-    const remaining = TOTAL_HOLDERS - cursor + 1;
-    const groupsLeft = GROUP_COUNT - g + 1;
-    const batch = Math.ceil(remaining / groupsLeft);
+function pushBatches(
+  ranges: RankRange[],
+  start: number,
+  end: number,
+  batchSize: number,
+) {
+  let cursor = start;
+  while (cursor <= end) {
     ranges.push({
       rankStart: cursor,
-      rankEnd: Math.min(cursor + batch - 1, TOTAL_HOLDERS),
+      rankEnd: Math.min(cursor + batchSize - 1, end),
     });
-    cursor += batch;
+    cursor += batchSize;
+  }
+}
+
+/**
+ * ~75 landmark groups: tight ranges at the top, wider batches in the long tail.
+ */
+export function buildRankRanges(totalHolders = TOTAL_HOLDERS): RankRange[] {
+  const ranges: RankRange[] = [
+    { rankStart: 1, rankEnd: 5 },
+    { rankStart: 6, rankEnd: 15 },
+    { rankStart: 16, rankEnd: 30 },
+    { rankStart: 31, rankEnd: 50 },
+  ];
+
+  pushBatches(ranges, 51, Math.min(100, totalHolders), 10);
+  if (totalHolders > 100) {
+    pushBatches(ranges, 101, Math.min(300, totalHolders), 15);
+  }
+  if (totalHolders > 300) {
+    pushBatches(ranges, 301, Math.min(800, totalHolders), 25);
+  }
+  if (totalHolders > 800) {
+    pushBatches(ranges, 801, totalHolders, 35);
   }
 
   return ranges;
