@@ -27,6 +27,7 @@ const vertexShader = /* glsl */ `
 `;
 
 const fragmentShader = /* glsl */ `
+  uniform float uShowHalo;
   varying float vBrightness;
   varying vec3 vColor;
 
@@ -34,7 +35,7 @@ const fragmentShader = /* glsl */ `
     vec2 uv = gl_PointCoord - 0.5;
     float d = length(uv);
     float core = exp(-d * d * 32.0);
-    float halo = exp(-d * d * 7.0) * 0.25;
+    float halo = exp(-d * d * 7.0) * 0.25 * uShowHalo;
     float alpha = (core + halo) * vBrightness;
     if (alpha < 0.002) discard;
     gl_FragColor = vec4(vColor * (core + halo * 0.3), alpha);
@@ -45,7 +46,19 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
-export default function BackgroundStars() {
+export type BackgroundStarsDebugLayers = {
+  enabled: boolean;
+  particleHalo: boolean;
+};
+
+interface BackgroundStarsProps {
+  debugLayers?: BackgroundStarsDebugLayers;
+}
+
+export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
+  const enabled = debugLayers?.enabled ?? true;
+  const showHalo = debugLayers?.particleHalo ?? true;
+
   const { geometry, material } = useMemo(() => {
     const total = LAYERS.reduce((s, l) => s + l.count, 0);
     const positions = new Float32Array(total * 3);
@@ -90,6 +103,7 @@ export default function BackgroundStars() {
     geometry.setAttribute("aBrightness", new THREE.BufferAttribute(brightness, 1));
 
     const material = new THREE.ShaderMaterial({
+      uniforms: { uShowHalo: { value: showHalo ? 1 : 0 } },
       vertexShader,
       fragmentShader,
       transparent: true,
@@ -98,7 +112,9 @@ export default function BackgroundStars() {
     });
 
     return { geometry, material };
-  }, []);
+  }, [showHalo]);
+
+  if (!enabled) return null;
 
   return (
     <points

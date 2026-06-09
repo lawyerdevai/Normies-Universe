@@ -7,21 +7,21 @@ export default function CosmicDust() {
     <group name="cosmic-dust">
       <Sparkles
         count={600}
-        scale={[220, 50, 220]}
-        size={22}
-        speed={0.006}
-        opacity={0.028}
+        scale={[200, 32, 200]}
+        size={14}
+        speed={0}
+        opacity={0.005}
         color="#8a9199"
         noise={2.6}
         raycast={() => null}
       />
       <Sparkles
         count={400}
-        scale={[180, 35, 180]}
+        scale={[165, 24, 165]}
         position={[12, 4, -8]}
-        size={18}
-        speed={0.004}
-        opacity={0.018}
+        size={11}
+        speed={0}
+        opacity={0.0035}
         color="#7a8490"
         noise={2}
         raycast={() => null}

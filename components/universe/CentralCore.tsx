@@ -7,14 +7,17 @@ interface CentralCoreProps {
   isHovered: boolean;
   isSelected: boolean;
   reducedMotion?: boolean;
+  debugEnabled?: boolean;
   onClick: () => void;
   onHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
 }
 
 export default function CentralCore({
+  debugEnabled = true,
   onClick,
   onHover,
 }: CentralCoreProps) {
+  if (!debugEnabled) return null;
   const hitMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({

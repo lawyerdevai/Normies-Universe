@@ -12,6 +12,11 @@ import CentralCore from "@/components/universe/CentralCore";
 import CosmicDust from "@/components/universe/CosmicDust";
 import GalaxyAtmosphere from "@/components/universe/GalaxyAtmosphere";
 import HolderGroupStars from "@/components/universe/HolderGroupStars";
+import LayerDebugPanel from "@/components/universe/LayerDebugPanel";
+import {
+  DEFAULT_LAYER_DEBUG,
+  type LayerDebugState,
+} from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
 import InfoPanel from "@/components/ui/InfoPanel";
 import Legend from "@/components/ui/Legend";
@@ -56,6 +61,7 @@ function SceneContent({
   onSelect,
   onCoreHover,
   onCoreClick,
+  layerDebug,
 }: {
   holderGroups: HolderGroupStar[];
   hoveredId: string | null;
@@ -65,6 +71,7 @@ function SceneContent({
   cameraTarget: CameraTarget;
   reducedMotion: boolean;
   isMobile: boolean;
+  layerDebug: LayerDebugState;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   onHover: (
     group: HolderGroupStar | null,
@@ -79,18 +86,30 @@ function SceneContent({
   return (
     <>
       <color attach="background" args={["#000000"]} />
-      <fog attach="fog" args={["#000000", 140, 400]} />
+      {layerDebug.fog ? (
+        <fog attach="fog" args={["#000000", 200, 480]} />
+      ) : null}
 
-      <BackgroundStars />
-      <GalaxyAtmosphere
-        coreHovered={hoveredCore}
-        coreSelected={selectedCore}
+      <BackgroundStars
+        debugLayers={{
+          enabled: layerDebug.backgroundStars,
+          particleHalo: layerDebug.backgroundParticleHalo,
+        }}
       />
-      <CosmicDust />
+      <GalaxyAtmosphere
+        debugLayers={{
+          enabled: layerDebug.galaxyAtmosphere,
+          bulge: layerDebug.galaxyBulge,
+          arms: layerDebug.galaxyArms,
+          particleHalo: layerDebug.galaxyParticleHalo,
+        }}
+      />
+      {layerDebug.cosmicDust ? <CosmicDust /> : null}
       <CentralCore
         isHovered={hoveredCore}
         isSelected={selectedCore}
         reducedMotion={reducedMotion}
+        debugEnabled={layerDebug.centralCore}
         onClick={onCoreClick}
         onHover={(hovered, screenPos) => onCoreHover(hovered, screenPos)}
       />
@@ -99,6 +118,11 @@ function SceneContent({
         hoveredId={hoveredId}
         selectedId={selectedGroup?.id ?? null}
         reducedMotion={reducedMotion}
+        debugLayers={{
+          visible: layerDebug.holderStarVisible,
+          glow: layerDebug.holderStarGlow,
+          hits: layerDebug.holderStarHits,
+        }}
         onHover={onHover}
         onSelect={onSelect}
       />
@@ -123,18 +147,34 @@ function SceneContent({
         enabled={isOverview}
       />
 
-      {!isMobile && (
+      {!isMobile && layerDebug.bloom && layerDebug.vignette ? (
         <EffectComposer multisampling={0}>
           <Bloom
-            intensity={2.8}
-            luminanceThreshold={0.015}
-            luminanceSmoothing={0.97}
+            intensity={1.2}
+            luminanceThreshold={0.13}
+            luminanceSmoothing={0.6}
             mipmapBlur
-            radius={0.92}
+            radius={0.7}
           />
-          <Vignette eskil={false} offset={0.38} darkness={0.52} />
+          <Vignette eskil={false} offset={0.4} darkness={0.6} />
         </EffectComposer>
-      )}
+      ) : null}
+      {!isMobile && layerDebug.bloom && !layerDebug.vignette ? (
+        <EffectComposer multisampling={0}>
+          <Bloom
+            intensity={1.2}
+            luminanceThreshold={0.13}
+            luminanceSmoothing={0.6}
+            mipmapBlur
+            radius={0.7}
+          />
+        </EffectComposer>
+      ) : null}
+      {!isMobile && !layerDebug.bloom && layerDebug.vignette ? (
+        <EffectComposer multisampling={0}>
+          <Vignette eskil={false} offset={0.4} darkness={0.6} />
+        </EffectComposer>
+      ) : null}
     </>
   );
 }
@@ -144,6 +184,9 @@ export default function UniverseScene() {
   const reducedMotion = useReducedMotion();
   const isMobile = useIsMobile();
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  const [layerDebug, setLayerDebug] = useState<LayerDebugState>(
+    DEFAULT_LAYER_DEBUG,
+  );
 
   const [hoveredGroup, setHoveredGroup] = useState<HolderGroupStar | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<HolderGroupStar | null>(
@@ -212,7 +255,7 @@ export default function UniverseScene() {
           alpha: false,
           powerPreference: "high-performance",
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.0,
+          toneMappingExposure: 0.85,
         }}
         className="absolute inset-0"
       >
@@ -225,6 +268,7 @@ export default function UniverseScene() {
           cameraTarget={cameraTarget}
           reducedMotion={reducedMotion}
           isMobile={isMobile}
+          layerDebug={layerDebug}
           controlsRef={controlsRef}
           onHover={handleHover}
           onSelect={handleSelect}
@@ -252,6 +296,7 @@ export default function UniverseScene() {
         position={tooltipPos}
       />
       <InfoPanel group={selectedGroup} onBack={handleBack} />
+      <LayerDebugPanel layers={layerDebug} onChange={setLayerDebug} />
     </div>
   );
 }

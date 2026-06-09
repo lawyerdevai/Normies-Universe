@@ -5,11 +5,18 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { HolderGroupStar, HolderGroupTier } from "@/types/universe";
 
+export type HolderGroupStarsDebugLayers = {
+  visible: boolean;
+  glow: boolean;
+  hits: boolean;
+};
+
 interface HolderGroupStarsProps {
   groups: HolderGroupStar[];
   hoveredId: string | null;
   selectedId: string | null;
   reducedMotion?: boolean;
+  debugLayers?: HolderGroupStarsDebugLayers;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
@@ -81,41 +88,36 @@ const vertexShader = /* glsl */ `
   attribute float aBrightness;
   attribute float aSparkle;
   attribute vec3 color;
-  uniform float uHoverBoost;
-  uniform float uSelectBoost;
+  uniform float uShowGlow;
   uniform int uHoveredIndex;
   uniform int uSelectedIndex;
   varying float vBrightness;
   varying float vGlow;
   varying float vSparkle;
   varying vec3 vColor;
-  varying float vIsActive;
   varying float vIsSelected;
 
   void main() {
     vColor = color;
     vSparkle = aSparkle;
-    vBrightness = aBrightness;
+    vGlow = aGlowOpacity;
     float hovered = float(gl_VertexID == uHoveredIndex);
     float selected = float(gl_VertexID == uSelectedIndex);
-    vIsActive = max(hovered, selected);
     vIsSelected = selected;
-
-    float boost = 1.0 + hovered * uHoverBoost + selected * uSelectBoost;
-    vGlow = aGlowOpacity * boost;
+    vBrightness = aBrightness * (1.0 + hovered * 0.1 + selected * 0.05);
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    float size = aCoreSize + aGlowSize * vGlow * (1.0 + hovered * 0.5 + selected * 0.3);
+    float size = (aCoreSize + aGlowSize * vGlow * uShowGlow) * (1.0 + hovered * 0.05 + selected * 0.03);
     gl_PointSize = max(size * (235.0 / -mvPosition.z), 3.0);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
 const fragmentShader = /* glsl */ `
+  uniform float uShowGlow;
   varying float vBrightness;
   varying float vGlow;
   varying float vSparkle;
   varying vec3 vColor;
-  varying float vIsActive;
   varying float vIsSelected;
 
   void main() {
@@ -125,21 +127,16 @@ const fragmentShader = /* glsl */ `
     float dEll = length(vec2(skew.x * 1.2, skew.y * 0.78));
 
     float core = exp(-d * d * 72.0);
-    float glow = exp(-dEll * dEll * mix(10.0, 4.5, vGlow)) * vGlow * 0.62;
+    float glow = exp(-dEll * dEll * mix(10.0, 4.5, vGlow)) * vGlow * 0.62 * uShowGlow;
 
     float cross = exp(-abs(uv.x) * 30.0) * 0.48 + exp(-abs(uv.y) * 30.0) * 0.48;
-    float sparkle = cross * vSparkle * (1.0 + vIsActive * 0.85);
+    float sparkle = cross * vSparkle;
 
     float alpha = (core * 1.15 + glow + sparkle * 0.52) * vBrightness;
 
     if (vIsSelected > 0.5) {
-      float ring = smoothstep(0.34, 0.38, dEll) * (1.0 - smoothstep(0.42, 0.47, dEll));
-      alpha += ring * 0.22;
-    }
-
-    if (vIsActive > 0.5 && vIsSelected < 0.5) {
-      alpha += exp(-dEll * dEll * 3.5) * vBrightness * 0.14;
-      alpha += sparkle * 0.25;
+      float ring = smoothstep(0.38, 0.4, dEll) * (1.0 - smoothstep(0.42, 0.44, dEll));
+      alpha += ring * 0.08;
     }
 
     if (alpha < 0.001) discard;
@@ -158,20 +155,17 @@ const _matrix = new THREE.Matrix4();
 const _position = new THREE.Vector3();
 const _scale = new THREE.Vector3();
 
-function phaseFromId(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) % 628;
-  return hash / 100;
-}
-
 export default function HolderGroupStars({
   groups,
   hoveredId,
   selectedId,
-  reducedMotion,
+  debugLayers,
   onHover,
   onSelect,
 }: HolderGroupStarsProps) {
+  const showVisible = debugLayers?.visible ?? true;
+  const showGlow = debugLayers?.glow ?? true;
+  const showHits = debugLayers?.hits ?? true;
   const pointsRef = useRef<THREE.Points>(null);
   const hitRef = useRef<THREE.InstancedMesh>(null);
   const hoveredIndex = groups.findIndex((g) => g.id === hoveredId);
@@ -188,7 +182,7 @@ export default function HolderGroupStars({
     [],
   );
 
-  const { geometry, material, visuals } = useMemo(() => {
+  const { geometry, material } = useMemo(() => {
     const visuals = groups.map((g, i) => starVisual(g, i));
     const positions = new Float32Array(groups.length * 3);
     const colors = new Float32Array(groups.length * 3);
@@ -232,8 +226,7 @@ export default function HolderGroupStars({
 
     const material = new THREE.ShaderMaterial({
       uniforms: {
-        uHoverBoost: { value: 1.5 },
-        uSelectBoost: { value: 0.75 },
+        uShowGlow: { value: showGlow ? 1 : 0 },
         uHoveredIndex: { value: -1 },
         uSelectedIndex: { value: -1 },
       },
@@ -246,8 +239,8 @@ export default function HolderGroupStars({
       toneMapped: false,
     });
 
-    return { geometry, material, visuals };
-  }, [groups]);
+    return { geometry, material };
+  }, [groups, showGlow]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "development") {
@@ -272,24 +265,10 @@ export default function HolderGroupStars({
     hitRef.current.count = groups.length;
   }, [groups]);
 
-  useFrame(({ clock }) => {
+  useFrame(() => {
     if (!pointsRef.current) return;
     material.uniforms.uHoveredIndex.value = hoveredIndex;
     material.uniforms.uSelectedIndex.value = selectedIndex;
-
-    if (reducedMotion) return;
-    const t = clock.elapsedTime;
-    const brightnessAttr = geometry.getAttribute(
-      "aBrightness",
-    ) as THREE.BufferAttribute;
-
-    groups.forEach((group, i) => {
-      if (group.tier !== "core" && group.tier !== "inner") return;
-      const base = visuals[i].brightness;
-      const pulse = 1 + Math.sin(t * 0.85 + phaseFromId(group.id)) * 0.018;
-      brightnessAttr.setX(i, base * pulse);
-    });
-    brightnessAttr.needsUpdate = true;
   });
 
   const handlePointer = (e: ThreeEvent<PointerEvent>, entering: boolean) => {
@@ -311,36 +290,40 @@ export default function HolderGroupStars({
 
   return (
     <group name="holder-group-stars">
-      <instancedMesh
-        ref={hitRef}
-        args={[undefined, hitMaterial, groups.length]}
-        frustumCulled={false}
-        renderOrder={12}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (e.instanceId !== undefined) onSelect(groups[e.instanceId]);
-        }}
-        onPointerOver={(e) => handlePointer(e, true)}
-        onPointerMove={(e: ThreeEvent<PointerEvent>) => {
-          if (e.instanceId !== undefined) {
-            onHover(groups[e.instanceId], {
-              x: e.nativeEvent.clientX,
-              y: e.nativeEvent.clientY,
-            });
-          }
-        }}
-        onPointerOut={(e) => handlePointer(e, false)}
-      >
-        <sphereGeometry args={[1, 8, 8]} />
-      </instancedMesh>
-      <points
-        ref={pointsRef}
-        geometry={geometry}
-        material={material}
-        frustumCulled={false}
-        renderOrder={15}
-        raycast={() => null}
-      />
+      {showHits ? (
+        <instancedMesh
+          ref={hitRef}
+          args={[undefined, hitMaterial, groups.length]}
+          frustumCulled={false}
+          renderOrder={12}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.instanceId !== undefined) onSelect(groups[e.instanceId]);
+          }}
+          onPointerOver={(e) => handlePointer(e, true)}
+          onPointerMove={(e: ThreeEvent<PointerEvent>) => {
+            if (e.instanceId !== undefined) {
+              onHover(groups[e.instanceId], {
+                x: e.nativeEvent.clientX,
+                y: e.nativeEvent.clientY,
+              });
+            }
+          }}
+          onPointerOut={(e) => handlePointer(e, false)}
+        >
+          <sphereGeometry args={[1, 8, 8]} />
+        </instancedMesh>
+      ) : null}
+      {showVisible ? (
+        <points
+          ref={pointsRef}
+          geometry={geometry}
+          material={material}
+          frustumCulled={false}
+          renderOrder={15}
+          raycast={() => null}
+        />
+      ) : null}
     </group>
   );
 }
