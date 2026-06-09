@@ -13,6 +13,7 @@ export default function CosmicDust() {
         opacity={0.028}
         color="#8a9199"
         noise={2.6}
+        raycast={() => null}
       />
       <Sparkles
         count={400}
@@ -23,6 +24,7 @@ export default function CosmicDust() {
         opacity={0.018}
         color="#7a8490"
         noise={2}
+        raycast={() => null}
       />
     </group>
   );

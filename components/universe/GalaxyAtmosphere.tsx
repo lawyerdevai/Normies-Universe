@@ -102,7 +102,12 @@ export default function GalaxyAtmosphere({
 
   return (
     <group rotation={[0.28, 0.15, 0.35]} scale={1.15}>
-      <points geometry={geometry} material={material} frustumCulled={false} />
+      <points
+        geometry={geometry}
+        material={material}
+        frustumCulled={false}
+        raycast={() => null}
+      />
     </group>
   );
 }

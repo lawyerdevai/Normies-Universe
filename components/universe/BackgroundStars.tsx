@@ -101,6 +101,11 @@ export default function BackgroundStars() {
   }, []);
 
   return (
-    <points geometry={geometry} material={material} frustumCulled={false} />
+    <points
+      geometry={geometry}
+      material={material}
+      frustumCulled={false}
+      raycast={() => null}
+    />
   );
 }

@@ -80,13 +80,42 @@ function visualFromNormies(
   };
 
   const normieT = Math.max(t, tierFloor[tier]);
-  const lightness = 78 + normieT * 18 + rng() * 4;
 
   return {
     size: lerp(0.28, 1.55, normieT) + rng() * 0.06,
     brightness: lerp(0.32, 1.0, normieT) + rng() * 0.04,
-    color: `hsl(220, 8%, ${lightness}%)`,
   };
+}
+
+/** Band-based starlight temperature: amber core → cool white outer. */
+function holderStarColor(rankStart: number, rng: () => number): string {
+  let hue: number;
+  let sat: number;
+  let light: number;
+
+  if (rankStart <= 50) {
+    hue = 38 + rng() * 4;
+    sat = 20 + rng() * 4;
+    light = 86 + rng() * 4;
+  } else if (rankStart <= 100) {
+    hue = 46 + rng() * 5;
+    sat = 14 + rng() * 4;
+    light = 87 + rng() * 4;
+  } else if (rankStart <= 300) {
+    hue = 54 + rng() * 6;
+    sat = 9 + rng() * 3;
+    light = 88 + rng() * 3;
+  } else if (rankStart <= 800) {
+    hue = 200 + rng() * 8;
+    sat = 7 + rng() * 3;
+    light = 86 + rng() * 3;
+  } else {
+    hue = 212 + rng() * 6;
+    sat = 5 + rng() * 2;
+    light = 84 + rng() * 3;
+  }
+
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
 }
 
 export function generateHolderGroupStats() {
@@ -127,6 +156,7 @@ export function generateHolderGroupStats() {
       totalNormies,
       tier,
       ...visuals,
+      color: holderStarColor(range.rankStart, rng),
       position: placement.position,
       distanceFromCenter: placement.distanceFromCenter,
       clickable: true as const,

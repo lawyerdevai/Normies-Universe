@@ -48,7 +48,7 @@ export type StarPlacement = {
 };
 
 /**
- * Place holder stars along spiral arms with rank-driven radius and organic spacing.
+ * Galaxy-influenced placement: many stars near arms, some between or offset organically.
  */
 export function generateStarPosition(
   index: number,
@@ -60,25 +60,44 @@ export function generateStarPosition(
   const bandSpan = Math.max(band.rankHi - band.rankLo, 1);
   const rankInBand = clamp01((rankStart - band.rankLo) / bandSpan);
 
-  // Golden-ratio stagger avoids even bead spacing along the arms.
   const golden = (index * 0.6180339887 + rankStart * 0.037) % 1;
-  const wobble = Math.sin(index * 1.71 + rankStart * 0.11) * 0.016;
+  const wobble = Math.sin(index * 1.71 + rankStart * 0.11) * 0.018;
   const armT =
-    lerp(band.tMin, band.tMax, rankInBand * 0.42 + golden * 0.58) +
+    lerp(band.tMin, band.tMax, rankInBand * 0.38 + golden * 0.62) +
     wobble +
-    gaussian(rng) * 0.014;
+    gaussian(rng) * 0.016;
 
+  const onArm = rng() < 0.62;
   const arm = (index + Math.floor(rankStart / 23)) % 2;
   const startAngle = arm * Math.PI;
-  const theta = startAngle + armT * ARM_SWEEP;
-  const r = CORE_RADIUS * Math.exp(SPIRAL_K * (theta - startAngle));
+  let theta = startAngle + armT * ARM_SWEEP;
+
+  if (!onArm) {
+    theta += (golden - 0.5) * 1.25 + (arm === 0 ? 0.72 : -0.72);
+  }
+
+  const rBase = CORE_RADIUS * Math.exp(SPIRAL_K * (theta - startAngle));
+  const radialDrift = 1 + gaussian(rng) * (0.08 + rankInBand * 0.14);
+  const r = rBase * radialDrift;
+
   const armWidth = (1.0 + (1 - armT) * 3.2) * Math.exp(-r / 85);
   const perp = theta + Math.PI / 2;
-  const scatter = gaussian(rng) * armWidth * 0.24;
+  const scatter = gaussian(rng) * armWidth * (onArm ? 0.22 : 0.46);
 
-  const lx = r * Math.cos(theta) + Math.cos(perp) * scatter;
-  const lz = r * Math.sin(theta) + Math.sin(perp) * scatter;
-  const ly = gaussian(rng) * (0.75 + (1 - armT) * 1.2);
+  let lx = r * Math.cos(theta) + Math.cos(perp) * scatter;
+  let lz = r * Math.sin(theta) + Math.sin(perp) * scatter;
+  let ly = gaussian(rng) * (0.8 + (1 - armT) * 1.3);
+
+  const fieldAngle = golden * Math.PI * 2 + index * 0.39;
+  const fieldT = lerp(band.tMin, band.tMax, rankInBand * 0.45 + golden * 0.55);
+  const fieldR =
+    CORE_RADIUS * Math.exp(SPIRAL_K * fieldT * ARM_SWEEP) * (0.88 + rng() * 0.2);
+  const fx = fieldR * Math.cos(fieldAngle);
+  const fz = fieldR * Math.sin(fieldAngle);
+  const blend = (1 - (onArm ? 0.78 : 0.42)) * (0.22 + (rankStart > 300 ? 0.18 : 0.08));
+
+  lx = lx * (1 - blend) + fx * blend;
+  lz = lz * (1 - blend) + fz * blend;
 
   _local.set(lx * GALAXY_SCALE, ly * GALAXY_SCALE, lz * GALAXY_SCALE);
   _local.applyEuler(GALAXY_EULER);

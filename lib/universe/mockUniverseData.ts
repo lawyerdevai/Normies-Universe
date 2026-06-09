@@ -5,12 +5,15 @@ import { generateHolderGroupStats } from "./generateHolderGroups";
 const AMBIENT_COUNT = 5000;
 const AMBIENT_SEED = 88001;
 
+const HOLDER_CACHE_VERSION = 4;
 let cachedGroups: HolderGroupStar[] | null = null;
 let cachedAmbient: AmbientStar[] | null = null;
+let holderCacheVersion = 0;
 
 export function getHolderGroups(): HolderGroupStar[] {
-  if (!cachedGroups) {
+  if (!cachedGroups || holderCacheVersion !== HOLDER_CACHE_VERSION) {
     cachedGroups = generateHolderGroupStats();
+    holderCacheVersion = HOLDER_CACHE_VERSION;
   }
   return cachedGroups;
 }
