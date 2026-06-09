@@ -12,17 +12,20 @@ import CentralCore from "@/components/universe/CentralCore";
 import CosmicDust from "@/components/universe/CosmicDust";
 import GalaxyAtmosphere from "@/components/universe/GalaxyAtmosphere";
 import HolderGroupStars from "@/components/universe/HolderGroupStars";
-import LayerDebugPanel from "@/components/universe/LayerDebugPanel";
-import {
-  DEFAULT_LAYER_DEBUG,
-  type LayerDebugState,
-} from "@/components/universe/layerDebug";
+import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
 import InfoPanel from "@/components/ui/InfoPanel";
-import Legend from "@/components/ui/Legend";
 import SearchBar from "@/components/ui/SearchBar";
-import { loadUniverseData } from "@/lib/universe";
+import {
+  assignHoldersToStars,
+  countClickableStars,
+  getHolderGroups,
+  verifyAssignment,
+} from "@/lib/universe";
+import type { RankedHolder } from "@/lib/opensea/holders";
 import type { CameraTarget, HolderGroupStar } from "@/types/universe";
+
+const CLICKABLE_STAR_COUNT = countClickableStars(getHolderGroups());
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -61,7 +64,6 @@ function SceneContent({
   onSelect,
   onCoreHover,
   onCoreClick,
-  layerDebug,
 }: {
   holderGroups: HolderGroupStar[];
   hoveredId: string | null;
@@ -71,7 +73,6 @@ function SceneContent({
   cameraTarget: CameraTarget;
   reducedMotion: boolean;
   isMobile: boolean;
-  layerDebug: LayerDebugState;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   onHover: (
     group: HolderGroupStar | null,
@@ -81,6 +82,7 @@ function SceneContent({
   onCoreHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
   onCoreClick: () => void;
 }) {
+  const layerDebug = DEFAULT_LAYER_DEBUG;
   const isOverview = cameraTarget.type === "overview";
 
   return (
@@ -180,13 +182,47 @@ function SceneContent({
 }
 
 export default function UniverseScene() {
-  const { holderGroups } = useMemo(() => loadUniverseData(), []);
   const reducedMotion = useReducedMotion();
   const isMobile = useIsMobile();
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
-  const [layerDebug, setLayerDebug] = useState<LayerDebugState>(
-    DEFAULT_LAYER_DEBUG,
+
+  const [holderGroups, setHolderGroups] = useState<HolderGroupStar[]>(() =>
+    getHolderGroups(),
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHolders() {
+      try {
+        const res = await fetch("/api/holders");
+        if (!res.ok) return;
+        const data = (await res.json()) as { rankedHolders: RankedHolder[] };
+        if (cancelled) return;
+
+        const assigned = assignHoldersToStars(
+          getHolderGroups(),
+          data.rankedHolders,
+        );
+        setHolderGroups(assigned);
+
+        if (process.env.NODE_ENV === "development") {
+          const check = verifyAssignment(assigned);
+          console.info(
+            `[Normie Universe] N=${CLICKABLE_STAR_COUNT} stars mapped to top holders`,
+            check,
+          );
+        }
+      } catch {
+        // Keep mock positions/labels if API unavailable.
+      }
+    }
+
+    loadHolders();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [hoveredGroup, setHoveredGroup] = useState<HolderGroupStar | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<HolderGroupStar | null>(
@@ -268,7 +304,6 @@ export default function UniverseScene() {
           cameraTarget={cameraTarget}
           reducedMotion={reducedMotion}
           isMobile={isMobile}
-          layerDebug={layerDebug}
           controlsRef={controlsRef}
           onHover={handleHover}
           onSelect={handleSelect}
@@ -287,7 +322,6 @@ export default function UniverseScene() {
           </p>
         </header>
         <SearchBar />
-        <Legend />
       </div>
 
       <StarTooltip
@@ -296,7 +330,6 @@ export default function UniverseScene() {
         position={tooltipPos}
       />
       <InfoPanel group={selectedGroup} onBack={handleBack} />
-      <LayerDebugPanel layers={layerDebug} onChange={setLayerDebug} />
     </div>
   );
 }

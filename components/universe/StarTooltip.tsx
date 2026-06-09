@@ -1,6 +1,5 @@
 "use client";
 
-import { tierLabel } from "@/lib/universe";
 import type { HolderGroupStar } from "@/types/universe";
 
 interface StarTooltipProps {
@@ -31,24 +30,17 @@ export default function StarTooltip({
 
   if (!group) return null;
 
+  const rank = group.collectionRank ?? group.rankStart;
+  const wallet = group.walletDisplay ?? group.label;
+
   return (
     <div
       className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-lg border border-white/10 bg-black/65 px-3 py-2.5 shadow-xl backdrop-blur-md"
       style={{ left: position.x, top: position.y - 12 }}
     >
       <p className="text-xs font-medium tracking-wide text-amber-50/90">
-        {group.label}
+        Rank #{rank} · {wallet} · {group.totalNormies.toLocaleString()} Normies
       </p>
-      <div className="mt-1.5 space-y-0.5 text-[10px] text-white/50">
-        <p>
-          Ranks {group.rankStart}–{group.rankEnd}
-        </p>
-        <p>
-          {group.holderCount} holders · {group.totalNormies.toLocaleString()}{" "}
-          Normies
-        </p>
-        <p>{tierLabel(group.tier)} tier</p>
-      </div>
     </div>
   );
 }

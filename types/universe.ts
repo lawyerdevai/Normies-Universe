@@ -14,6 +14,9 @@ export type HolderGroupStar = {
   position: [number, number, number];
   distanceFromCenter: number;
   clickable: true;
+  wallet?: string;
+  walletDisplay?: string;
+  collectionRank?: number;
 };
 
 export type AmbientStar = {

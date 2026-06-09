@@ -3,6 +3,10 @@
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import {
+  normieRangeFromStars,
+  visualFromHoldings,
+} from "@/lib/universe/holderStarVisual";
 import type { HolderGroupStar, HolderGroupTier } from "@/types/universe";
 
 export type HolderGroupStarsDebugLayers = {
@@ -64,7 +68,20 @@ function lerpRange(lo: number, hi: number, t: number) {
   return lo + (hi - lo) * t;
 }
 
-function starVisual(group: HolderGroupStar, index: number) {
+function starVisual(
+  group: HolderGroupStar,
+  index: number,
+  normieRange: { min: number; max: number } | null,
+) {
+  if (group.collectionRank !== undefined && normieRange) {
+    return visualFromHoldings(
+      group.totalNormies,
+      normieRange.min,
+      normieRange.max,
+      group.collectionRank,
+    );
+  }
+
   const rankT = 1 - (group.rankStart - 1) / 1890;
   const band = RANK_BAND_VISUAL[rankBand(group.rankStart)];
   const bandT = rankT * 0.65 + ((index * 0.618) % 1) * 0.35;
@@ -104,9 +121,9 @@ const vertexShader = /* glsl */ `
     float hovered = float(gl_VertexID == uHoveredIndex);
     float selected = float(gl_VertexID == uSelectedIndex);
     vIsSelected = selected;
-    vBrightness = aBrightness * (1.0 + hovered * 0.1 + selected * 0.05);
+    vBrightness = aBrightness * (1.0 + hovered * 0.14 + selected * 0.05);
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    float size = (aCoreSize + aGlowSize * vGlow * uShowGlow) * (1.0 + hovered * 0.05 + selected * 0.03);
+    float size = (aCoreSize + aGlowSize * vGlow * uShowGlow) * (1.0 + hovered * 0.06 + selected * 0.03);
     gl_PointSize = max(size * (235.0 / -mvPosition.z), 3.0);
     gl_Position = projectionMatrix * mvPosition;
   }
@@ -185,7 +202,8 @@ export default function HolderGroupStars({
   );
 
   const { geometry, material } = useMemo(() => {
-    const visuals = groups.map((g, i) => starVisual(g, i));
+    const normieRange = normieRangeFromStars(groups);
+    const visuals = groups.map((g, i) => starVisual(g, i, normieRange));
     const positions = new Float32Array(groups.length * 3);
     const colors = new Float32Array(groups.length * 3);
     const coreSizes = new Float32Array(groups.length);
