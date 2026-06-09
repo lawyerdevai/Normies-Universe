@@ -12,13 +12,13 @@ function hashSeed(seed: string) {
   return hash;
 }
 
-/** #5599FF → #88BBFF */
+/** Pale blue-white — cool tint without strong blue saturation. */
 function coolBlueColor(rng: () => number): [number, number, number] {
   const t = rng();
   return [
-    lerp(85 / 255, 136 / 255, t),
-    lerp(153 / 255, 187 / 255, t),
-    lerp(255 / 255, 255 / 255, t),
+    lerp(128 / 255, 168 / 255, t),
+    lerp(172 / 255, 198 / 255, t),
+    lerp(224 / 255, 238 / 255, t),
   ];
 }
 
