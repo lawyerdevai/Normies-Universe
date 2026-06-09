@@ -17,19 +17,23 @@ export default function CentralCore({
   onClick,
   onHover,
 }: CentralCoreProps) {
-  if (!debugEnabled) return null;
   const hitMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 0,
         depthWrite: false,
+        depthTest: false,
       }),
     [],
   );
 
   return (
-    <group rotation={[0.28, 0.15, 0.35]} scale={1.15}>
+    <group
+      rotation={[0.28, 0.15, 0.35]}
+      scale={1.15}
+      visible={debugEnabled}
+    >
       <mesh
         material={hitMaterial}
         scale={[10.5, 3.2, 6.8]}

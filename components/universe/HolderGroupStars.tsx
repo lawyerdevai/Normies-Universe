@@ -171,13 +171,15 @@ export default function HolderGroupStars({
   const hoveredIndex = groups.findIndex((g) => g.id === hoveredId);
   const selectedIndex = groups.findIndex((g) => g.id === selectedId);
 
+  const hitGeometry = useMemo(() => new THREE.SphereGeometry(1, 8, 8), []);
+
   const hitMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 0,
         depthWrite: false,
-        depthTest: true,
+        depthTest: false,
       }),
     [],
   );
@@ -263,7 +265,8 @@ export default function HolderGroupStars({
     });
     hitRef.current.instanceMatrix.needsUpdate = true;
     hitRef.current.count = groups.length;
-  }, [groups]);
+    hitRef.current.computeBoundingSphere();
+  }, [groups, showHits]);
 
   useFrame(() => {
     if (!pointsRef.current) return;
@@ -290,30 +293,27 @@ export default function HolderGroupStars({
 
   return (
     <group name="holder-group-stars">
-      {showHits ? (
-        <instancedMesh
-          ref={hitRef}
-          args={[undefined, hitMaterial, groups.length]}
-          frustumCulled={false}
-          renderOrder={12}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (e.instanceId !== undefined) onSelect(groups[e.instanceId]);
-          }}
-          onPointerOver={(e) => handlePointer(e, true)}
-          onPointerMove={(e: ThreeEvent<PointerEvent>) => {
-            if (e.instanceId !== undefined) {
-              onHover(groups[e.instanceId], {
-                x: e.nativeEvent.clientX,
-                y: e.nativeEvent.clientY,
-              });
-            }
-          }}
-          onPointerOut={(e) => handlePointer(e, false)}
-        >
-          <sphereGeometry args={[1, 8, 8]} />
-        </instancedMesh>
-      ) : null}
+      <instancedMesh
+        ref={hitRef}
+        args={[hitGeometry, hitMaterial, groups.length]}
+        visible={showHits}
+        frustumCulled={false}
+        renderOrder={12}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (e.instanceId !== undefined) onSelect(groups[e.instanceId]);
+        }}
+        onPointerOver={(e) => handlePointer(e, true)}
+        onPointerMove={(e: ThreeEvent<PointerEvent>) => {
+          if (e.instanceId !== undefined) {
+            onHover(groups[e.instanceId], {
+              x: e.nativeEvent.clientX,
+              y: e.nativeEvent.clientY,
+            });
+          }
+        }}
+        onPointerOut={(e) => handlePointer(e, false)}
+      />
       {showVisible ? (
         <points
           ref={pointsRef}

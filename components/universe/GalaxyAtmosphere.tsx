@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { generateGalaxyAtmosphere } from "@/lib/universe/generateGalaxyAtmosphere";
 
@@ -50,6 +50,7 @@ interface GalaxyAtmosphereProps {
 export default function GalaxyAtmosphere({
   debugLayers,
 }: GalaxyAtmosphereProps) {
+  const pointsRef = useRef<THREE.Points>(null);
   const enabled = debugLayers?.enabled ?? true;
   const showBulge = debugLayers?.bulge ?? true;
   const showArms = debugLayers?.arms ?? true;
@@ -92,11 +93,18 @@ export default function GalaxyAtmosphere({
     return { geometry, material };
   }, [showArms, showBulge, showHalo]);
 
+  useLayoutEffect(() => {
+    if (pointsRef.current) {
+      pointsRef.current.raycast = () => {};
+    }
+  });
+
   if (!enabled) return null;
 
   return (
     <group rotation={[0.28, 0.15, 0.35]} scale={1.15}>
       <points
+        ref={pointsRef}
         geometry={geometry}
         material={material}
         frustumCulled={false}

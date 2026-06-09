@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { createRng } from "@/lib/universe/seededRandom";
 
@@ -56,6 +56,7 @@ interface BackgroundStarsProps {
 }
 
 export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
+  const pointsRef = useRef<THREE.Points>(null);
   const enabled = debugLayers?.enabled ?? true;
   const showHalo = debugLayers?.particleHalo ?? true;
 
@@ -114,10 +115,17 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
     return { geometry, material };
   }, [showHalo]);
 
+  useLayoutEffect(() => {
+    if (pointsRef.current) {
+      pointsRef.current.raycast = () => {};
+    }
+  });
+
   if (!enabled) return null;
 
   return (
     <points
+      ref={pointsRef}
       geometry={geometry}
       material={material}
       frustumCulled={false}
