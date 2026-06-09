@@ -36,41 +36,45 @@ function coreBulgeColor(density: number, rng: () => number): [number, number, nu
   ];
 }
 
-function armColor(
-  t: number,
-  arm: number,
-  coreProx: number,
+function smoothstep01(value: number) {
+  const t = Math.min(1, Math.max(0, value));
+  return t * t * (3 - 2 * t);
+}
+
+/** Smooth radial gradient: warm core → silver mid → cool blue outer tips. */
+function armColorByRadius(
+  radius: number,
   rng: () => number,
 ): [number, number, number] {
-  let r = 0.76;
-  let g = 0.79;
-  let b = 0.84;
+  const radialT = Math.min(
+    1,
+    Math.max(0, (radius - CORE_RADIUS) / (MAX_RADIUS - CORE_RADIUS)),
+  );
 
-  if (t < 0.24) {
-    const warm = 1 - t / 0.24;
-    r += warm * 0.1;
-    g += warm * 0.04;
-    b -= warm * 0.07;
-  }
+  const warm: [number, number, number] = [0.97, 0.9, 0.74];
+  const mid: [number, number, number] = [0.95, 0.96, 0.98];
+  const cool: [number, number, number] = [0.8, 0.88, 1.0];
 
-  const pinkWave = Math.sin(t * 4.8 + arm * 1.1) * 0.5 + 0.5;
-  if (coreProx > 0.45 && t > 0.12 && t < 0.58 && pinkWave > 0.74) {
-    r += 0.05;
-    g -= 0.015;
-    b += 0.035;
-  }
+  let r: number;
+  let g: number;
+  let b: number;
 
-  const violetWave = Math.cos(t * 3.2 + arm * 0.75) * 0.5 + 0.5;
-  if (t > 0.2 && violetWave > 0.7) {
-    r -= 0.035;
-    g += 0.01;
-    b += 0.06;
+  if (radialT < 0.4) {
+    const s = smoothstep01(radialT / 0.4);
+    r = warm[0] + (mid[0] - warm[0]) * s;
+    g = warm[1] + (mid[1] - warm[1]) * s;
+    b = warm[2] + (mid[2] - warm[2]) * s;
+  } else {
+    const s = smoothstep01((radialT - 0.4) / 0.6);
+    r = mid[0] + (cool[0] - mid[0]) * s;
+    g = mid[1] + (cool[1] - mid[1]) * s;
+    b = mid[2] + (cool[2] - mid[2]) * s;
   }
 
   return [
-    r + (rng() - 0.5) * 0.018,
-    g + (rng() - 0.5) * 0.015,
-    b + (rng() - 0.5) * 0.018,
+    r + (rng() - 0.5) * 0.014,
+    g + (rng() - 0.5) * 0.012,
+    b + (rng() - 0.5) * 0.014,
   ];
 }
 
@@ -132,17 +136,22 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
       const armWidth = (2 + (1 - t) * 5) * Math.exp(-r / 80);
       const perp = theta + Math.PI / 2;
       const scatter = gaussian(rng) * armWidth;
+      const spineDist = Math.abs(scatter) / armWidth;
+      const spineWeight = Math.exp(-spineDist * spineDist * 2.1);
 
       const x = r * Math.cos(theta) + Math.cos(perp) * scatter;
       const z = r * Math.sin(theta) + Math.sin(perp) * scatter;
       const y = gaussian(rng) * (1.5 + (1 - t) * 2);
       const coreProx = Math.exp(-t * 2.5);
 
+      const baseBright =
+        (0.08 + coreProx * 0.35 + (1 - t) * 0.12) * (0.6 + rng() * 0.4);
+
       particles.push({
         position: [x, y, z],
         size: 0.3 + coreProx * 1.4 + (1 - t) * 0.5 + rng() * 0.4,
-        brightness: (0.08 + coreProx * 0.35 + (1 - t) * 0.12) * (0.6 + rng() * 0.4),
-        color: armColor(t, arm, coreProx, rng),
+        brightness: baseBright * (0.6 + spineWeight * 0.7),
+        color: armColorByRadius(r, rng),
         isCore: false,
       });
     }
