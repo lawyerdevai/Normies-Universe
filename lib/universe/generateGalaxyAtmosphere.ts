@@ -5,14 +5,34 @@ export type AtmosphereParticle = {
   size: number;
   brightness: number;
   color: [number, number, number];
+  isCore: boolean;
 };
 
-function coreBarColor(bulge: number, rng: () => number): [number, number, number] {
-  const warm = 0.55 + bulge * 0.45;
+function coreBulgeColor(density: number, rng: () => number): [number, number, number] {
+  const warm = 0.4 + density * 0.6;
+  let r = 0.84 + warm * 0.08;
+  let g = 0.78 + warm * 0.06;
+  let b = 0.66 + warm * 0.03;
+
+  const accent = rng();
+  if (accent > 0.88) {
+    r += 0.04;
+    g -= 0.015;
+    b += 0.03;
+  } else if (accent > 0.94) {
+    r -= 0.025;
+    g += 0.01;
+    b += 0.045;
+  } else if (accent > 0.985) {
+    r -= 0.02;
+    g += 0.02;
+    b += 0.055;
+  }
+
   return [
-    0.84 + warm * 0.1 + rng() * 0.02,
-    0.8 + warm * 0.05 + rng() * 0.015,
-    0.7 + warm * 0.02 + rng() * 0.015,
+    r + (rng() - 0.5) * 0.02,
+    g + (rng() - 0.5) * 0.018,
+    b + (rng() - 0.5) * 0.02,
   ];
 }
 
@@ -63,18 +83,42 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
   const particles: AtmosphereParticle[] = [];
   const k = Math.log(MAX_RADIUS / CORE_RADIUS) / ARM_SWEEP;
 
-  // Elongated luminous bar at center
-  for (let i = 0; i < Math.floor(count * 0.18); i++) {
-    const along = (rng() - 0.5) * 22;
-    const across = gaussian(rng) * 5;
-    const depth = gaussian(rng) * 3;
-    const bulge = Math.exp(-(across * across + depth * depth) / 30);
+  // Dense elliptical galactic bulge — many tiny particles, organic cloud
+  const bulgeTarget = Math.floor(count * 0.22);
+  let bulgeAdded = 0;
+  let bulgeAttempts = 0;
+  while (bulgeAdded < bulgeTarget && bulgeAttempts < bulgeTarget * 5) {
+    bulgeAttempts++;
+    const theta = rng() * Math.PI * 2;
+    const radial = Math.pow(rng(), 0.58);
+    const rx = 11.5;
+    const ry = 2.6;
+    const rz = 7.2;
+
+    const x =
+      radial * rx * Math.cos(theta) +
+      gaussian(rng) * (1.4 + radial * 1.8);
+    const y = gaussian(rng) * (ry * (0.35 + radial * 0.65));
+    const z =
+      radial * rz * Math.sin(theta) * 0.55 +
+      gaussian(rng) * (1.1 + radial * 1.2);
+    const warp = Math.sin(theta * 2.4) * 0.5 * (1 - radial);
+
+    const norm =
+      (x / rx) * (x / rx) +
+      (y / ry) * (y / ry) +
+      (z / rz) * (z / rz);
+    const density = Math.exp(-norm * 1.35);
+    if (density < 0.05) continue;
+
     particles.push({
-      position: [along, depth, across * 0.4],
-      size: 0.5 + bulge * 2.2 + rng() * 0.8,
-      brightness: (0.25 + bulge * 0.55) * (0.7 + rng() * 0.3),
-      color: coreBarColor(bulge, rng),
+      position: [x + warp, y, z],
+      size: 0.1 + density * 0.42 + rng() * 0.1,
+      brightness: (0.05 + density * 0.18) * (0.72 + rng() * 0.28),
+      color: coreBulgeColor(density, rng),
+      isCore: true,
     });
+    bulgeAdded++;
   }
 
   // Two spiral arms — monochromatic cloud clusters
@@ -99,6 +143,7 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
         size: 0.3 + coreProx * 1.4 + (1 - t) * 0.5 + rng() * 0.4,
         brightness: (0.08 + coreProx * 0.35 + (1 - t) * 0.12) * (0.6 + rng() * 0.4),
         color: armColor(t, arm, coreProx, rng),
+        isCore: false,
       });
     }
   }

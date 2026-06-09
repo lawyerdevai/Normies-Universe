@@ -82,7 +82,10 @@ function SceneContent({
       <fog attach="fog" args={["#000000", 140, 400]} />
 
       <BackgroundStars />
-      <GalaxyAtmosphere />
+      <GalaxyAtmosphere
+        coreHovered={hoveredCore}
+        coreSelected={selectedCore}
+      />
       <CosmicDust />
       <CentralCore
         isHovered={hoveredCore}
