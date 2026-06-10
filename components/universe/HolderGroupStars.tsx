@@ -9,6 +9,7 @@ import {
   visualFromHoldings,
   type HolderStarVisual,
 } from "@/lib/universe/holderStarVisual";
+import { isPointerOverPyre } from "@/lib/universe/isPointerOverPyre";
 import type { HolderGroupStar } from "@/types/universe";
 
 export type HolderGroupStarsDebugLayers = {
@@ -31,6 +32,7 @@ interface HolderGroupStarsProps {
     screenPos?: { x: number; y: number },
   ) => void;
   onSelect: (group: HolderGroupStar) => void;
+  onPyreClick: () => void;
   onEmptyClick: () => void;
 }
 
@@ -255,6 +257,7 @@ export default function HolderGroupStars({
   hoverRef,
   onHover,
   onSelect,
+  onPyreClick,
   onEmptyClick,
 }: HolderGroupStarsProps) {
   const showVisible = debugLayers?.visible ?? true;
@@ -387,9 +390,13 @@ export default function HolderGroupStars({
       );
       if (nearest) {
         onSelect(nearest);
-      } else {
-        onEmptyClick();
+        return;
       }
+      if (isPointerOverPyre(pointer, camera, size)) {
+        onPyreClick();
+        return;
+      }
+      onEmptyClick();
     };
 
     canvas.addEventListener("click", handleClick);
@@ -402,6 +409,7 @@ export default function HolderGroupStars({
     groups,
     showGlow,
     onSelect,
+    onPyreClick,
     onEmptyClick,
   ]);
 

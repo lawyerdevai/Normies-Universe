@@ -17,6 +17,7 @@ import OuterHolderStars from "@/components/universe/OuterHolderStars";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
 import SearchBar from "@/components/ui/SearchBar";
+import PyreDetailPanel from "@/components/ui/PyreDetailPanel";
 import WalletDetailPanel from "@/components/ui/WalletDetailPanel";
 import {
   DEFAULT_CAMERA_FOV,
@@ -81,6 +82,7 @@ function SceneContent({
   onSelect,
   onEmptyClick,
   onCoreHover,
+  onPyreClick,
   onResetCamera,
 }: {
   holderGroups: HolderGroupStar[];
@@ -103,6 +105,7 @@ function SceneContent({
   onSelect: (group: HolderGroupStar) => void;
   onEmptyClick: () => void;
   onCoreHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
+  onPyreClick: () => void;
   onResetCamera: () => void;
 }) {
   const layerDebug = DEFAULT_LAYER_DEBUG;
@@ -150,6 +153,7 @@ function SceneContent({
         }}
         onHover={onHover}
         onSelect={onSelect}
+        onPyreClick={onPyreClick}
         onEmptyClick={onEmptyClick}
       />
       <CentralCore
@@ -266,6 +270,7 @@ export default function UniverseScene() {
   const [selectedGroup, setSelectedGroup] = useState<HolderGroupStar | null>(
     null,
   );
+  const [pyreOpen, setPyreOpen] = useState(false);
   const [hoveredCore, setHoveredCore] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
@@ -302,10 +307,17 @@ export default function UniverseScene() {
 
   const handleSelect = useCallback((group: HolderGroupStar) => {
     setSelectedGroup(group);
+    setPyreOpen(false);
+  }, []);
+
+  const handleCoreSelect = useCallback(() => {
+    setPyreOpen(true);
+    setSelectedGroup(null);
   }, []);
 
   const handleClosePanel = useCallback(() => {
     setSelectedGroup(null);
+    setPyreOpen(false);
   }, []);
 
   const handleResetCamera = useCallback(() => {
@@ -368,6 +380,7 @@ export default function UniverseScene() {
           starHoverRef={starHoverRef}
           onHover={handleHover}
           onSelect={handleSelect}
+          onPyreClick={handleCoreSelect}
           onEmptyClick={handleClosePanel}
           onCoreHover={handleCoreHover}
           onResetCamera={handleResetCamera}
@@ -397,6 +410,7 @@ export default function UniverseScene() {
         open={selectedGroup !== null}
         onClose={handleClosePanel}
       />
+      <PyreDetailPanel open={pyreOpen} onClose={handleClosePanel} />
     </div>
   );
 }

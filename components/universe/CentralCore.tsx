@@ -3,8 +3,8 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { generatePyreParticles, PYRE_RX } from "@/lib/universe/generatePyre";
-import { localToWorldPlacement } from "@/lib/universe/holderStarBands";
+import { generatePyreParticles } from "@/lib/universe/generatePyre";
+import { isPointerOverPyre } from "@/lib/universe/isPointerOverPyre";
 import type { HolderGroupStar } from "@/types/universe";
 
 const GALAXY_EULER = new THREE.Euler(0.28, 0.15, 0.35, "XYZ");
@@ -51,9 +51,6 @@ const fragmentShader = /* glsl */ `
     gl_FragColor = vec4(lit, alpha);
   }
 `;
-
-const _projected = new THREE.Vector3();
-const _edgeProjected = new THREE.Vector3();
 
 function pointerScreenPos(
   pointer: THREE.Vector2,
@@ -169,23 +166,7 @@ export default function CentralCore({
         onHover(false);
       }
     } else {
-      const px = (pointer.x * 0.5 + 0.5) * size.width;
-      const py = (-pointer.y * 0.5 + 0.5) * size.height;
-
-      const center = localToWorldPlacement(0, 0, 0).position;
-      _projected.set(...center).project(camera);
-      const overPyre =
-        _projected.z <= 1 &&
-        (() => {
-          const cx = (_projected.x * 0.5 + 0.5) * size.width;
-          const cy = (-_projected.y * 0.5 + 0.5) * size.height;
-          const edge = localToWorldPlacement(PYRE_RX, 0, 0).position;
-          _edgeProjected.set(...edge).project(camera);
-          const ex = (_edgeProjected.x * 0.5 + 0.5) * size.width;
-          const ey = (-_edgeProjected.y * 0.5 + 0.5) * size.height;
-          const pyreRadius = Math.hypot(ex - cx, ey - cy);
-          return Math.hypot(px - cx, py - cy) <= pyreRadius;
-        })();
+      const overPyre = isPointerOverPyre(pointer, camera, size);
 
       if (overPyre !== lastPyreHover.current) {
         lastPyreHover.current = overPyre;
