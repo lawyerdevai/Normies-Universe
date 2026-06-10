@@ -1,6 +1,8 @@
+import { type QuadrantCounts, positionQuadrant } from "./angularBalance";
 import { enforceHolderStarPlacement } from "./enforceHolderStarPlacement";
 import type { StarPlacement } from "./generateStarPositions";
 import type { HolderStarVisual } from "./holderStarVisual";
+import { PLACEMENT_SEED } from "./holderStarScatter";
 import { clearPyreScreenOverlap } from "./pyreScreenExclusion";
 import { placeTopHolderStar, rotatePlacementY } from "./placeTopHolderStar";
 
@@ -53,6 +55,8 @@ export function resolveHolderStarSpacing(
   seed: string,
   visual: HolderStarVisual,
   placed: PlacedStar[],
+  quadrantCounts: QuadrantCounts,
+  placementSeed: number = PLACEMENT_SEED,
 ): StarPlacement {
   const radius = holderStarCollisionRadius(visual, rank);
   const hash = hashSeed(seed.toLowerCase());
@@ -64,31 +68,37 @@ export function resolveHolderStarSpacing(
         ? 0
         : dir * (0.14 + attempt * 0.11 + ((hash >> (attempt % 8)) % 100) * 0.002);
 
-    let placement = placeTopHolderStar(rank, seed, angleOffset);
+    let placement = placeTopHolderStar(rank, seed, angleOffset, placementSeed);
     if (attempt > 0) {
       const rotStep = dir * (0.09 + attempt * 0.06);
       placement = rotatePlacementY(placement, rotStep);
     }
 
     if (!hasCollision(placement.position, radius, placed)) {
-      return finalizeHolderPlacement(rank, seed, placement);
+      return finalizeHolderPlacement(rank, seed, placement, quadrantCounts);
     }
   }
 
   const fallback = rotatePlacementY(
-    placeTopHolderStar(rank, seed),
+    placeTopHolderStar(rank, seed, 0, placementSeed),
     (((hash >> 6) % 1000) / 1000) * Math.PI * 0.5,
   );
-  return finalizeHolderPlacement(rank, seed, fallback);
+  return finalizeHolderPlacement(rank, seed, fallback, quadrantCounts);
 }
 
 function finalizeHolderPlacement(
   rank: number,
   seed: string,
   placement: StarPlacement,
+  quadrantCounts: QuadrantCounts,
 ): StarPlacement {
   let result = enforceHolderStarPlacement(rank, placement);
-  const cleared = clearPyreScreenOverlap(result.position, rank, seed);
+  const cleared = clearPyreScreenOverlap(
+    result.position,
+    rank,
+    seed,
+    quadrantCounts,
+  );
   if (
     cleared[0] !== result.position[0] ||
     cleared[1] !== result.position[1] ||
@@ -100,5 +110,7 @@ function finalizeHolderPlacement(
       distanceFromCenter: dist,
     });
   }
+
+  quadrantCounts[positionQuadrant(result.position)]++;
   return result;
 }

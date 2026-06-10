@@ -1,5 +1,9 @@
 import * as THREE from "three";
 import { PYRE_RX, PYRE_RY, PYRE_RZ } from "./generatePyre";
+import {
+  type QuadrantCounts,
+  positionQuadrant,
+} from "./angularBalance";
 import { PYRE_EXCLUSION_MARGIN, localToWorldPlacement } from "./holderStarBands";
 import { createDefaultCamera } from "./cameraConfig";
 
@@ -120,34 +124,66 @@ function hashSeed(seed: string) {
   return hash;
 }
 
+type ClearCandidate = {
+  position: [number, number, number];
+  quadrantLoad: number;
+  travel: number;
+};
+
 /**
- * Rotate deterministically along the star's ring (constant radius) until its
- * default-camera projection clears the Pyre screen zone.
+ * Rotate deterministically on the constant-radius sphere until the default-camera
+ * projection clears the Pyre. Alternates sweep direction by rank and prefers the
+ * less crowded disc quadrant when multiple escapes exist.
  */
 export function clearPyreScreenOverlap(
   position: [number, number, number],
   rank: number,
   seed: string,
+  quadrantCounts: QuadrantCounts = [0, 0, 0, 0],
 ): [number, number, number] {
   if (!isInPyreScreenZone(position)) return position;
 
   const hash = hashSeed(`${seed.toLowerCase()}:${rank}`);
   const startPhi = ((hash % 1000) / 1000) * Math.PI * 2;
-  const startTheta = (((hash >> 10) % 1000) / 1000 - 0.5) * Math.PI * 0.45;
+  const startTheta = (((hash >> 10) % 1000) / 1000 - 0.5) * Math.PI * 0.35;
+  const phiDir = rank % 2 === 0 ? 1 : -1;
+  const thetaDir = (hash >> 5) % 2 === 0 ? 1 : -1;
   const phiSteps = 72;
-  const thetaSteps = 25;
+  const thetaSteps = 17;
+
+  let best: ClearCandidate | null = null;
 
   for (let ti = 0; ti < thetaSteps; ti++) {
-    const deltaTheta =
-      startTheta + (ti / thetaSteps - 0.5) * Math.PI * 0.5;
+    const thetaMag = (ti / Math.max(1, thetaSteps - 1)) * Math.PI * 0.5;
+    const deltaTheta = startTheta + thetaDir * (thetaMag - Math.PI * 0.25);
+
     for (let pi = 0; pi < phiSteps; pi++) {
-      const deltaPhi = startPhi + (pi / phiSteps) * Math.PI * 2;
+      const phiMag = (pi / phiSteps) * Math.PI * 2;
+      const deltaPhi = startPhi + phiDir * phiMag;
       const rotated = rotateOnSphereAtRadius(position, deltaPhi, deltaTheta);
-      if (!isInPyreScreenZone(rotated)) return rotated;
+      if (isInPyreScreenZone(rotated)) continue;
+
+      const quadrant = positionQuadrant(rotated);
+      const candidate: ClearCandidate = {
+        position: rotated,
+        quadrantLoad: quadrantCounts[quadrant],
+        travel: Math.abs(deltaPhi) + Math.abs(deltaTheta) * 0.6,
+      };
+
+      if (
+        !best ||
+        candidate.quadrantLoad < best.quadrantLoad ||
+        (candidate.quadrantLoad === best.quadrantLoad &&
+          candidate.travel < best.travel)
+      ) {
+        best = candidate;
+      }
     }
   }
 
-  return rotateOnSphereAtRadius(position, startPhi + Math.PI, 0);
+  if (best) return best.position;
+
+  return rotateOnSphereAtRadius(position, startPhi + phiDir * Math.PI, 0);
 }
 
 export function verifyPyreScreenExclusion(

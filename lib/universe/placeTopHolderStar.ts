@@ -50,11 +50,12 @@ export function placeTopHolderStar(
   rank: number,
   seed: string,
   angleOffset = 0,
+  placementSeed?: number,
 ): StarPlacement {
   const hash = hashSeed(seed);
   const rng = createRng(hash + rank * 1597);
   const ring = ringForRank(rank);
-  const bandScatter = scatterForRank(rank);
+  const bandScatter = scatterForRank(rank, placementSeed);
 
   const armT = lerp(ring.tMin, ring.tMax, bandScatter.slotT);
   const r = CORE_RADIUS * Math.exp(SPIRAL_K * armT * ARM_SWEEP);

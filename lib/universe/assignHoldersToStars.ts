@@ -5,6 +5,8 @@ import {
   normieRangeFromStars,
   visualFromHoldings,
 } from "./holderStarVisual";
+import { evaluateAngularBalance } from "./angularBalance";
+import { PLACEMENT_SEED } from "./holderStarScatter";
 import {
   holderStarCollisionRadius,
   resolveHolderStarSpacing,
@@ -23,6 +25,7 @@ export function countClickableStars(stars: HolderGroupStar[]) {
 export function assignHoldersToStars(
   stars: HolderGroupStar[],
   rankedHolders: RankedHolder[],
+  placementSeed: number = PLACEMENT_SEED,
 ): HolderGroupStar[] {
   const clickable = stars.filter((s) => s.clickable);
   const n = Math.min(clickable.length, rankedHolders.length);
@@ -62,6 +65,7 @@ export function assignHoldersToStars(
 
   const placed: { position: [number, number, number]; radius: number }[] = [];
   const placementById = new Map<string, ReturnType<typeof resolveHolderStarSpacing>>();
+  const quadrantCounts: [number, number, number, number] = [0, 0, 0, 0];
 
   for (const star of assigned) {
     const visual = visualFromHoldings(
@@ -75,6 +79,8 @@ export function assignHoldersToStars(
       star.wallet ?? star.id,
       visual,
       placed,
+      quadrantCounts,
+      placementSeed,
     );
     placementById.set(star.id, placement);
     placed.push({
@@ -112,6 +118,7 @@ export function assignHoldersToStars(
     }));
     const bandCheck = verifyHolderBandPlacement(placedForVerify);
     const screenCheck = verifyPyreScreenExclusion(placedForVerify);
+    const angular = evaluateAngularBalance(placedForVerify);
     console.info(
       "[Normie Universe] Holder band placement verify",
       {
@@ -121,6 +128,8 @@ export function assignHoldersToStars(
         orderingOk: bandCheck.orderingOk,
         screenClear: screenCheck.allClear,
         screenViolations: screenCheck.violations.length,
+        quadrants: angular.counts,
+        angularSpread: angular.spread,
       },
       bandCheck.checks.map((c) => ({
         rank: c.rank,
