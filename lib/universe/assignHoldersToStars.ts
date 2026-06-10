@@ -5,7 +5,10 @@ import {
   normieRangeFromStars,
   visualFromHoldings,
 } from "./holderStarVisual";
-import { placeTopHolderStar } from "./placeTopHolderStar";
+import {
+  holderStarCollisionRadius,
+  resolveHolderStarSpacing,
+} from "./resolveHolderStarSpacing";
 
 export function countClickableStars(stars: HolderGroupStar[]) {
   return stars.filter((s) => s.clickable).length;
@@ -51,18 +54,42 @@ export function assignHoldersToStars(
   const range = normieRangeFromStars(mapped);
   if (!range) return mapped;
 
+  const assigned = mapped
+    .filter((star) => star.collectionRank !== undefined)
+    .sort((a, b) => a.collectionRank! - b.collectionRank!);
+
+  const placed: { position: [number, number, number]; radius: number }[] = [];
+  const placementById = new Map<string, ReturnType<typeof resolveHolderStarSpacing>>();
+
+  for (const star of assigned) {
+    const visual = visualFromHoldings(
+      star.totalNormies,
+      range.min,
+      range.max,
+      star.collectionRank!,
+    );
+    const placement = resolveHolderStarSpacing(
+      star.collectionRank!,
+      star.wallet ?? star.id,
+      visual,
+      placed,
+    );
+    placementById.set(star.id, placement);
+    placed.push({
+      position: placement.position,
+      radius: holderStarCollisionRadius(visual, star.collectionRank!),
+    });
+  }
+
   return mapped.map((star) => {
-    if (star.collectionRank === undefined) return star;
+    const placement = placementById.get(star.id);
+    if (!placement) return star;
 
     const visual = visualFromHoldings(
       star.totalNormies,
       range.min,
       range.max,
-      star.collectionRank,
-    );
-    const placement = placeTopHolderStar(
-      star.collectionRank,
-      star.wallet ?? star.id,
+      star.collectionRank!,
     );
 
     return {

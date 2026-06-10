@@ -168,7 +168,8 @@ const vertexShader = /* glsl */ `
     vBrightness = aBrightness * (1.0 + hovered * 0.14 + selected * 0.05 + pulse * 0.55);
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     float size = (aCoreSize + aGlowSize * vGlow * uShowGlow) * (1.0 + hovered * 0.06 + selected * 0.03);
-    gl_PointSize = max(size * (235.0 / -mvPosition.z), 3.0);
+    float pixelSize = size * (235.0 / -mvPosition.z);
+    gl_PointSize = clamp(pixelSize, 3.0, 88.0);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -183,21 +184,25 @@ const fragmentShader = /* glsl */ `
 
   void main() {
     vec2 uv = gl_PointCoord - 0.5;
+    float dist = length(uv);
+
+    if (dist > 0.47) discard;
+
+    float circleMask = 1.0 - smoothstep(0.34, 0.47, dist);
     vec2 skew = vec2(uv.x * 1.08, uv.y * 0.92);
-    float d = length(skew);
     float dEll = length(vec2(skew.x * 1.2, skew.y * 0.78));
 
-    float core = exp(-d * d * 72.0);
-    float glow = exp(-dEll * dEll * mix(10.0, 4.5, vGlow)) * vGlow * 0.62 * uShowGlow;
+    float core = exp(-length(skew) * length(skew) * 72.0);
+    float glow = exp(-dist * dist * mix(10.0, 4.5, vGlow)) * vGlow * 0.62 * uShowGlow;
 
-    float cross = exp(-abs(uv.x) * 30.0) * 0.48 + exp(-abs(uv.y) * 30.0) * 0.48;
-    float sparkle = cross * vSparkle;
+    float cross = exp(-abs(uv.x) * 36.0) * 0.48 + exp(-abs(uv.y) * 36.0) * 0.48;
+    float sparkle = cross * vSparkle * circleMask;
 
-    float alpha = (core * 1.15 + glow + sparkle * 0.52) * vBrightness;
+    float alpha = (core * 1.15 + glow + sparkle * 0.52) * vBrightness * circleMask;
 
     if (vIsSelected > 0.5) {
-      float ring = smoothstep(0.38, 0.4, dEll) * (1.0 - smoothstep(0.42, 0.44, dEll));
-      alpha += ring * 0.08;
+      float ring = smoothstep(0.38, 0.4, dist) * (1.0 - smoothstep(0.42, 0.44, dist));
+      alpha += ring * 0.08 * circleMask;
     }
 
     if (alpha < 0.001) discard;

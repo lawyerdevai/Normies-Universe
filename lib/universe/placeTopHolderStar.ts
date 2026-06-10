@@ -58,6 +58,32 @@ function angleForPlacement(rank: number, ring: RankRing, seed: string, rng: () =
   return sectorCenter + walletOffset + gaussian(rng) * sector * 0.08;
 }
 
+type PlacementMode = "onArm" | "gap" | "fringe";
+
+function placementMode(hash: number): PlacementMode {
+  const bucket = (hash >> 12) % 100;
+  if (bucket < 33) return "onArm";
+  if (bucket < 66) return "gap";
+  return "fringe";
+}
+
+function nearestArmAngle(armT: number, angle: number) {
+  const arm0 = armT * ARM_SWEEP;
+  const arm1 = Math.PI + armT * ARM_SWEEP;
+  return angleDistance(angle, arm0) < angleDistance(angle, arm1) ? arm0 : arm1;
+}
+
+function toWorldPlacement(lx: number, ly: number, lz: number): StarPlacement {
+  _local.set(lx * GALAXY_SCALE, ly * GALAXY_SCALE, lz * GALAXY_SCALE);
+  _local.applyEuler(GALAXY_EULER);
+  return {
+    position: [_local.x, _local.y, _local.z],
+    distanceFromCenter: Math.sqrt(
+      _local.x * _local.x + _local.y * _local.y + _local.z * _local.z,
+    ),
+  };
+}
+
 /**
  * Place a top-75 holder star by rank ring — inner rings near Pyre,
  * outer rings at the galaxy edge, full 360° organic scatter.
@@ -65,6 +91,7 @@ function angleForPlacement(rank: number, ring: RankRing, seed: string, rng: () =
 export function placeTopHolderStar(
   rank: number,
   seed: string,
+  angleOffset = 0,
 ): StarPlacement {
   const hash = hashSeed(seed);
   const rng = createRng(hash + rank * 1597);
@@ -76,31 +103,35 @@ export function placeTopHolderStar(
   const armT = lerp(ring.tMin, ring.tMax, slotT);
   const r = CORE_RADIUS * Math.exp(SPIRAL_K * armT * ARM_SWEEP);
 
-  let angle = angleForPlacement(rank, ring, seed, rng);
-  const onArm = (hash >> 12) % 100 < 48;
+  let angle = angleForPlacement(rank, ring, seed, rng) + angleOffset;
+  const mode = placementMode(hash);
 
   const armWidth = (1.1 + (1 - armT) * 2.6) * Math.exp(-r / 88);
   const perp = angle + Math.PI / 2;
-  let scatter = gaussian(rng) * armWidth * 0.3;
+  let scatter = 0;
 
-  if (onArm) {
-    const arm0 = armT * ARM_SWEEP;
-    const arm1 = Math.PI + armT * ARM_SWEEP;
-    angle =
-      (angleDistance(angle, arm0) < angleDistance(angle, arm1) ? arm0 : arm1) +
-      gaussian(rng) * 0.055;
-    scatter = gaussian(rng) * armWidth * 0.24;
+  let bridgeX = 0;
+  let bridgeZ = 0;
+
+  if (mode === "onArm") {
+    const armAngle = nearestArmAngle(armT, angle);
+    angle = armAngle + gaussian(rng) * 0.05;
+    scatter = gaussian(rng) * armWidth * 0.2;
+  } else if (mode === "gap") {
+    scatter = gaussian(rng) * armWidth * 0.5;
+    const bridge = gaussian(rng) * armWidth * 0.36;
+    bridgeX = Math.cos(angle + 0.55) * bridge;
+    bridgeZ = Math.sin(angle + 0.55) * bridge;
+  } else {
+    const armAngle = nearestArmAngle(armT, angle);
+    const side = ((hash >> 16) % 2 === 0 ? 1 : -1) as 1 | -1;
+    angle = armAngle + side * (0.12 + rng() * 0.1) + gaussian(rng) * 0.06;
+    scatter = side * armWidth * (0.42 + rng() * 0.22) + gaussian(rng) * armWidth * 0.12;
   }
 
-  let lx = r * Math.cos(angle) + Math.cos(perp) * scatter;
-  let lz = r * Math.sin(angle) + Math.sin(perp) * scatter;
+  let lx = r * Math.cos(angle) + Math.cos(perp) * scatter + bridgeX;
+  let lz = r * Math.sin(angle) + Math.sin(perp) * scatter + bridgeZ;
   let ly = gaussian(rng) * (0.65 + (1 - armT) * 1.05);
-
-  if (!onArm) {
-    const bridge = gaussian(rng) * armWidth * 0.34;
-    lx += Math.cos(angle + 0.55) * bridge;
-    lz += Math.sin(angle + 0.55) * bridge;
-  }
 
   if (rank <= 5) {
     const norm =
@@ -113,13 +144,20 @@ export function placeTopHolderStar(
     }
   }
 
-  _local.set(lx * GALAXY_SCALE, ly * GALAXY_SCALE, lz * GALAXY_SCALE);
-  _local.applyEuler(GALAXY_EULER);
+  return toWorldPlacement(lx, ly, lz);
+}
 
+export function rotatePlacementY(
+  placement: StarPlacement,
+  delta: number,
+): StarPlacement {
+  const [x, y, z] = placement.position;
+  const c = Math.cos(delta);
+  const s = Math.sin(delta);
+  const nx = x * c - z * s;
+  const nz = x * s + z * c;
   return {
-    position: [_local.x, _local.y, _local.z],
-    distanceFromCenter: Math.sqrt(
-      _local.x * _local.x + _local.y * _local.y + _local.z * _local.z,
-    ),
+    position: [nx, y, nz],
+    distanceFromCenter: Math.sqrt(nx * nx + y * y + nz * nz),
   };
 }

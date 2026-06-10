@@ -11,6 +11,7 @@ export {
   hitRadiusForVisual,
 } from "./holderStarVisual";
 export { placeTopHolderStar } from "./placeTopHolderStar";
+export { resolveHolderStarSpacing } from "./resolveHolderStarSpacing";
 export { buildOuterHolderStars } from "./buildOuterHolderStars";
 export { placeOuterHolderStar } from "./placeOuterHolderStar";
 export { findHolderByWallet } from "./searchHolderStars";
