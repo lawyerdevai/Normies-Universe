@@ -27,12 +27,13 @@ type RankRing = {
   index0: number;
 };
 
-/** Rank → galactic ring band — spans Pyre to outer arm tips. */
+/** Strict non-overlapping rank rings — inner to outer arm tips. */
 function ringForRank(rank: number): RankRing {
-  if (rank <= 5) return { tMin: 0.05, tMax: 0.17, count: 5, index0: 1 };
-  if (rank <= 20) return { tMin: 0.18, tMax: 0.34, count: 15, index0: 6 };
-  if (rank <= 45) return { tMin: 0.3, tMax: 0.56, count: 25, index0: 21 };
-  return { tMin: 0.48, tMax: 0.93, count: 30, index0: 46 };
+  if (rank <= 5) return { tMin: 0.055, tMax: 0.165, count: 5, index0: 1 };
+  if (rank <= 15) return { tMin: 0.167, tMax: 0.275, count: 10, index0: 6 };
+  if (rank <= 30) return { tMin: 0.277, tMax: 0.405, count: 15, index0: 16 };
+  if (rank <= 50) return { tMin: 0.407, tMax: 0.615, count: 20, index0: 31 };
+  return { tMin: 0.617, tMax: 0.93, count: 25, index0: 51 };
 }
 
 function rankTInRing(rank: number, ring: RankRing) {
@@ -70,9 +71,9 @@ export function placeTopHolderStar(
   const ring = ringForRank(rank);
   const rankT = rankTInRing(rank, ring);
 
-  const armT =
-    lerp(ring.tMin, ring.tMax, rankT * 0.45 + rng() * 0.55) +
-    gaussian(rng) * 0.012;
+  const walletJitter = ((hash >> 4) % 1000) / 1000;
+  const slotT = clamp01(rankT * 0.86 + walletJitter * 0.1 + rng() * 0.04);
+  const armT = lerp(ring.tMin, ring.tMax, slotT);
   const r = CORE_RADIUS * Math.exp(SPIRAL_K * armT * ARM_SWEEP);
 
   let angle = angleForPlacement(rank, ring, seed, rng);
