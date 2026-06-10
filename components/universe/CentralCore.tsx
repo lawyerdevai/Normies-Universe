@@ -45,13 +45,13 @@ const fragmentShader = /* glsl */ `
     vec2 uv = gl_PointCoord - 0.5;
     float d = length(uv);
     float core = exp(-d * d * 30.0);
-    float halo = exp(-d * d * 7.0) * 0.16;
+    float halo = exp(-d * d * 7.0) * 0.24;
     float alpha = (core + halo) * vBrightness;
     if (alpha < 0.003) discard;
 
     vec3 hot = vec3(1.0, 0.96, 0.88);
     vec3 base = mix(vColor, hot, vFlare * 0.82);
-    vec3 lit = base * (core * 1.28 + halo * 0.32 + vFlare * 0.45);
+    vec3 lit = base * (core * 1.92 + halo * 0.48 + vFlare * 0.675);
     gl_FragColor = vec4(lit, alpha);
   }
 `;

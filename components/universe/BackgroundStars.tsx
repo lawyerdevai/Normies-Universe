@@ -6,9 +6,9 @@ import * as THREE from "three";
 import { createRng } from "@/lib/universe/seededRandom";
 
 const LAYERS = [
-  { count: 9000, seed: 88001, size: [0.09, 0.32] as [number, number], brightness: [0.025, 0.08] as [number, number], spread: 1.4 },
-  { count: 2800, seed: 88002, size: [0.22, 0.6] as [number, number], brightness: [0.06, 0.16] as [number, number], spread: 1.0 },
-  { count: 900, seed: 88003, size: [0.5, 1.2] as [number, number], brightness: [0.12, 0.32] as [number, number], spread: 0.65 },
+  { count: 9000, seed: 88001, size: [0.09, 0.32] as [number, number], brightness: [0.05, 0.16] as [number, number], spread: 1.4 },
+  { count: 2800, seed: 88002, size: [0.22, 0.6] as [number, number], brightness: [0.12, 0.32] as [number, number], spread: 1.0 },
+  { count: 900, seed: 88003, size: [0.5, 1.2] as [number, number], brightness: [0.24, 0.64] as [number, number], spread: 0.65 },
 ];
 
 const vertexShader = /* glsl */ `

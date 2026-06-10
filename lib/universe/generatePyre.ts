@@ -134,7 +134,7 @@ export function generatePyreParticles(count = PYRE_COUNT): PyreParticle[] {
     const color = emberColor(rng, distT);
     const size = pyreSize(rng, distT);
     const centerLift = lerp(0.72, 1, Math.pow(1 - distT, 0.35));
-    const baseBrightness = lerp(0.42, 1.05, rng()) * centerLift;
+    const baseBrightness = lerp(0.42, 1.05, rng()) * centerLift * 1.5;
 
     const period = 1 + rng() * 3;
     const flickerSpeed = (Math.PI * 2) / period;

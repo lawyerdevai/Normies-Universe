@@ -82,6 +82,21 @@ const ARM_SWEEP = Math.PI * 3;
 const CORE_RADIUS = 14;
 const MAX_RADIUS = 95;
 
+/** Inner core 0.75×, mid 1.0×, outer arms/tips 1.3× — smooth, no banding. */
+function radialBrightnessWeight(x: number, z: number): number {
+  const t = Math.min(1, Math.max(0, Math.hypot(x, z) / MAX_RADIUS));
+  const innerEdge = 1 / 3;
+  const outerEdge = 2 / 3;
+
+  if (t < innerEdge) {
+    return 0.75 + smoothstep01(t / innerEdge) * 0.25;
+  }
+  if (t > outerEdge) {
+    return 1.0 + smoothstep01((t - outerEdge) / (1 - outerEdge)) * 0.3;
+  }
+  return 1.0;
+}
+
 export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
   const rng = createRng(33107);
   const particles: AtmosphereParticle[] = [];
@@ -115,10 +130,14 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
     const density = Math.exp(-norm * 1.35);
     if (density < 0.05) continue;
 
+    const bx = x + warp;
     particles.push({
-      position: [x + warp, y, z],
+      position: [bx, y, z],
       size: 0.1 + density * 0.42 + rng() * 0.1,
-      brightness: (0.05 + density * 0.18) * (0.72 + rng() * 0.28),
+      brightness:
+        (0.05 + density * 0.18) *
+        (0.72 + rng() * 0.28) *
+        radialBrightnessWeight(bx, z),
       color: coreBulgeColor(density, rng),
       isCore: true,
     });
@@ -126,7 +145,7 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
   }
 
   // Two spiral arms — monochromatic cloud clusters
-  const perArm = Math.floor(((count * 0.82) / 2) * 1.4);
+  const perArm = Math.floor(((count * 0.82) / 2) * 2.1);
   for (let arm = 0; arm < 2; arm++) {
     const startAngle = arm * Math.PI;
     for (let i = 0; i < perArm; i++) {
@@ -150,7 +169,11 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
       particles.push({
         position: [x, y, z],
         size: 0.3 + coreProx * 1.4 + (1 - t) * 0.5 + rng() * 0.4,
-        brightness: baseBright * (0.6 + spineWeight * 0.7) * 1.2,
+        brightness:
+          baseBright *
+          (0.6 + spineWeight * 0.7) *
+          3.0 *
+          radialBrightnessWeight(x, z),
         color: armColorByRadius(r, rng),
         isCore: false,
       });

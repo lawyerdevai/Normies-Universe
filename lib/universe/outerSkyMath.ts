@@ -96,7 +96,7 @@ export function decorativeSkyVisual(seed: number): SkyStarVisual {
   return {
     tier: 0,
     screenPixels: 1.12,
-    opacity: 0.06 + rng() * 0.085,
+    opacity: 0.12 + rng() * 0.17,
     color: stellarColor(seed, rng),
     twinklePhase: ((seed % 6283) / 1000) * Math.PI * 2,
     twinkleSpeed: (Math.PI * 2) / (2 + (seed % 1000) / 1000),
