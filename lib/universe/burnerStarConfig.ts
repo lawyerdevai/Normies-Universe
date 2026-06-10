@@ -1,5 +1,5 @@
-export const BURNER_TIER1_COLOR = "#FF8C00";
-export const BURNER_TIER2_COLOR = "#FFD700";
+export const BURNER_TIER1_COLOR = "#FF6B00";
+export const BURNER_TIER2_COLOR = "#CC3300";
 
 export type BurnerWalletEntry = {
   address: string;
