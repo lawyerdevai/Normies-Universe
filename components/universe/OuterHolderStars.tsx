@@ -5,7 +5,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { buildDecorativeSkyStars } from "@/lib/universe/buildDecorativeSkyStars";
 import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
-import { searchHighlightStore } from "@/lib/universe/searchHighlightStore";
+import { LOCATOR_HIGHLIGHT_SCREEN_PX } from "@/lib/universe/screenSpaceLocator";
 import type { DecorativeSkyStar, OuterHolderStar } from "@/types/universe";
 
 function createSkyStarTexture() {
@@ -43,6 +43,12 @@ function useSkyStarMaterial() {
   }, []);
 }
 
+function holderBasePixels(star: OuterHolderStar) {
+  let pixels = star.screenPixels;
+  if (star.tier === 3) pixels *= 1.08;
+  return pixels;
+}
+
 function updateSkyInstances(
   mesh: THREE.InstancedMesh,
   stars: SkyStarLike[],
@@ -51,20 +57,12 @@ function updateSkyInstances(
   camQuat: THREE.Quaternion,
   dummy: THREE.Object3D,
   time: number,
-  hiddenIndex: number,
 ) {
   for (let i = 0; i < stars.length; i++) {
     const star = stars[i];
     const [x, y, z] = star.position;
     dummy.position.set(x, y, z);
     dummy.quaternion.copy(camQuat);
-
-    if (i === hiddenIndex) {
-      dummy.scale.set(0, 0, 0);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      continue;
-    }
 
     const dist = dummy.position.distanceTo(camera.position);
     let pixels = star.screenPixels;
@@ -86,16 +84,96 @@ function updateSkyInstances(
   mesh.instanceMatrix.needsUpdate = true;
 }
 
-interface OuterHolderStarsProps {
-  stars: OuterHolderStar[];
+function updateHolderInstances(
+  mesh: THREE.InstancedMesh,
+  stars: OuterHolderStar[],
+  camera: THREE.Camera,
+  pixelWorld: number,
+  camQuat: THREE.Quaternion,
+  dummy: THREE.Object3D,
+  time: number,
+  highlightIndex: number,
+  highlightBlend: number,
+  shimmer: number,
+  baseColors: THREE.Color[],
+) {
+  let colorsDirty = false;
+
+  for (let i = 0; i < stars.length; i++) {
+    const star = stars[i];
+    const [x, y, z] = star.position;
+    dummy.position.set(x, y, z);
+    dummy.quaternion.copy(camQuat);
+
+    const dist = dummy.position.distanceTo(camera.position);
+    const basePixels = holderBasePixels(star);
+    let pixels = basePixels;
+    const tierBoost = star.tier === 3 ? 1.12 : 1;
+    const baseBrightness = star.opacity * tierBoost;
+    let brightness = baseBrightness;
+
+    const highlighted = i === highlightIndex && highlightBlend > 0.001;
+
+    if (highlighted) {
+      pixels =
+        basePixels +
+        (LOCATOR_HIGHLIGHT_SCREEN_PX - basePixels) * highlightBlend;
+      brightness =
+        baseBrightness +
+        (tierBoost * shimmer - baseBrightness) * highlightBlend;
+    } else if (star.twinkles) {
+      pixels *=
+        0.94 + 0.06 * Math.sin(time * star.twinkleSpeed + star.twinklePhase);
+    }
+
+    const worldSize = pixels * pixelWorld * dist;
+    dummy.scale.set(worldSize, worldSize, 1);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+
+    if (mesh.instanceColor && highlightIndex >= 0 && highlightBlend > 0.001) {
+      const c = baseColors[i].clone();
+      if (highlighted) c.multiplyScalar(brightness / baseBrightness);
+      mesh.setColorAt(i, c);
+      colorsDirty = true;
+    }
+  }
+
+  if (
+    mesh.instanceColor &&
+    highlightIndex >= 0 &&
+    highlightBlend <= 0.001
+  ) {
+    for (let i = 0; i < stars.length; i++) {
+      mesh.setColorAt(i, baseColors[i]);
+    }
+    colorsDirty = true;
+  }
+
+  mesh.instanceMatrix.needsUpdate = true;
+  if (colorsDirty && mesh.instanceColor) {
+    mesh.instanceColor.needsUpdate = true;
+  }
 }
 
-export default function OuterHolderStars({ stars }: OuterHolderStarsProps) {
+interface OuterHolderStarsProps {
+  stars: OuterHolderStar[];
+  highlightWallet: string | null;
+  highlightActive: boolean;
+}
+
+export default function OuterHolderStars({
+  stars,
+  highlightWallet,
+  highlightActive,
+}: OuterHolderStarsProps) {
   const decorative = useMemo(() => buildDecorativeSkyStars(), []);
   const decoRef = useRef<THREE.InstancedMesh>(null);
   const holderRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const material = useSkyStarMaterial();
+  const highlightBlend = useRef(0);
+  const baseColors = useRef<THREE.Color[]>([]);
 
   const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
@@ -113,30 +191,48 @@ export default function OuterHolderStars({ stars }: OuterHolderStarsProps) {
   }, [decorative]);
 
   useLayoutEffect(() => {
+    if (!highlightWallet) {
+      highlightBlend.current = 0;
+      const mesh = holderRef.current;
+      if (mesh?.instanceColor && baseColors.current.length > 0) {
+        baseColors.current.forEach((c, i) => mesh.setColorAt(i, c));
+        mesh.instanceColor.needsUpdate = true;
+      }
+    }
+  }, [highlightWallet]);
+
+  useLayoutEffect(() => {
     const mesh = holderRef.current;
     if (!mesh) return;
     mesh.count = stars.length;
-    stars.forEach((star, i) => {
+    baseColors.current = stars.map((star) => {
       const boost = star.tier === 3 ? 1.12 : 1;
       const c = new THREE.Color(star.color[0], star.color[1], star.color[2]);
       c.multiplyScalar(star.opacity * boost);
-      mesh.setColorAt(i, c);
+      return c;
+    });
+    stars.forEach((star, i) => {
+      mesh.setColorAt(i, baseColors.current[i]);
     });
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.raycast = () => {};
   }, [stars]);
 
-  useFrame(({ clock, camera, size }) => {
+  useFrame(({ clock, camera, size }, dt) => {
     const persp = camera as THREE.PerspectiveCamera;
     const pixelWorld = (2 * Math.tan((persp.fov * Math.PI) / 360)) / size.height;
     const camQuat = camera.quaternion;
     const time = clock.elapsedTime;
-    const { wallet, starKind, highlightPersist } = searchHighlightStore;
 
-    let hiddenIndex = -1;
-    if (starKind === "outer" && wallet && highlightPersist) {
-      const key = normalizeWalletAddress(wallet);
-      hiddenIndex = stars.findIndex(
+    const goal = highlightWallet && highlightActive ? 1 : 0;
+    highlightBlend.current +=
+      (goal - highlightBlend.current) * Math.min(1, dt * 5);
+    const shimmer = 0.9 + 0.1 * Math.sin(time * 2.2);
+
+    let highlightIndex = -1;
+    if (highlightWallet) {
+      const key = normalizeWalletAddress(highlightWallet);
+      highlightIndex = stars.findIndex(
         (s) => normalizeWalletAddress(s.wallet ?? s.id) === key,
       );
     }
@@ -150,12 +246,11 @@ export default function OuterHolderStars({ stars }: OuterHolderStarsProps) {
         camQuat,
         dummy,
         time,
-        -1,
       );
     }
 
     if (holderRef.current) {
-      updateSkyInstances(
+      updateHolderInstances(
         holderRef.current,
         stars,
         camera,
@@ -163,7 +258,10 @@ export default function OuterHolderStars({ stars }: OuterHolderStarsProps) {
         camQuat,
         dummy,
         time,
-        hiddenIndex,
+        highlightIndex,
+        highlightBlend.current,
+        shimmer,
+        baseColors.current,
       );
     }
   });

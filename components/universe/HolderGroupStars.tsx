@@ -11,8 +11,6 @@ import {
 } from "@/lib/universe/holderStarVisual";
 import { createHolderStarPointMaterial } from "@/lib/universe/holderStarPointShader";
 import { isPointerOverPyre } from "@/lib/universe/isPointerOverPyre";
-import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
-import { searchHighlightStore } from "@/lib/universe/searchHighlightStore";
 import type { HolderGroupStar } from "@/types/universe";
 
 export type HolderGroupStarsDebugLayers = {
@@ -189,7 +187,6 @@ export default function HolderGroupStars({
   const hitRef = useRef<THREE.InstancedMesh>(null);
   const lastHoverId = useRef<string | null>(null);
   const visualsRef = useRef<HolderStarVisual[]>([]);
-  const prevHiddenIndex = useRef(-1);
   const hoveredIndex = groups.findIndex((g) => g.id === hoveredId);
   const selectedIndex = groups.findIndex((g) => g.id === selectedId);
 
@@ -323,56 +320,6 @@ export default function HolderGroupStars({
     if (!pointsRef.current) return;
     material.uniforms.uHoveredIndex.value = hoveredIndex;
     material.uniforms.uSelectedIndex.value = selectedIndex;
-
-    const { wallet, starKind, highlightPersist } = searchHighlightStore;
-
-    let hiddenIndex = -1;
-    if (starKind === "top75" && highlightPersist && wallet) {
-      const key = normalizeWalletAddress(wallet);
-      hiddenIndex = groups.findIndex(
-        (g) => normalizeWalletAddress(g.wallet ?? g.id) === key,
-      );
-    }
-
-    if (hiddenIndex >= 0 || prevHiddenIndex.current >= 0) {
-      const coreAttr = geometry.getAttribute("aCoreSize") as THREE.BufferAttribute;
-      const glowAttr = geometry.getAttribute("aGlowSize") as THREE.BufferAttribute;
-      const glowOpAttr = geometry.getAttribute(
-        "aGlowOpacity",
-      ) as THREE.BufferAttribute;
-      const sparkleAttr = geometry.getAttribute(
-        "aSparkle",
-      ) as THREE.BufferAttribute;
-      const brightnessAttr = geometry.getAttribute(
-        "aBrightness",
-      ) as THREE.BufferAttribute;
-
-      groups.forEach((_, i) => {
-        const base = visualsRef.current[i];
-        if (!base) return;
-
-        if (i === hiddenIndex && hiddenIndex >= 0) {
-          coreAttr.setX(i, 0);
-          glowAttr.setX(i, 0);
-          glowOpAttr.setX(i, 0);
-          sparkleAttr.setX(i, 0);
-          brightnessAttr.setX(i, 0);
-        } else {
-          coreAttr.setX(i, base.coreSize);
-          glowAttr.setX(i, base.glowSize);
-          glowOpAttr.setX(i, base.glowOpacity);
-          sparkleAttr.setX(i, base.sparkle);
-          brightnessAttr.setX(i, base.brightness);
-        }
-      });
-
-      coreAttr.needsUpdate = true;
-      glowAttr.needsUpdate = true;
-      glowOpAttr.needsUpdate = true;
-      sparkleAttr.needsUpdate = true;
-      brightnessAttr.needsUpdate = true;
-    }
-    prevHiddenIndex.current = hiddenIndex;
 
     const nearest = pickNearestGroup(
       pointer,

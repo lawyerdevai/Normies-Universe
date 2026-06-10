@@ -13,8 +13,8 @@ import CentralCore from "@/components/universe/CentralCore";
 import CosmicDust from "@/components/universe/CosmicDust";
 import GalaxyAtmosphere from "@/components/universe/GalaxyAtmosphere";
 import HolderGroupStars from "@/components/universe/HolderGroupStars";
+import FoundStar from "@/components/universe/FoundStar";
 import OuterHolderStars from "@/components/universe/OuterHolderStars";
-import SearchHighlightStar from "@/components/universe/SearchHighlightStar";
 import SearchLocator from "@/components/universe/SearchLocator";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
@@ -39,31 +39,23 @@ import {
   verifyAssignment,
 } from "@/lib/universe";
 import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
-import {
-  locatorFromHolderMatch,
-  parseSearchQuery,
-} from "@/lib/universe/resolveSearch";
+import { parseSearchQuery } from "@/lib/universe/resolveSearch";
 import type { RankedHolder } from "@/lib/opensea/holders";
 import type {
   HolderGroupStar,
-  LocatorTarget,
   OuterHolderStar,
   WalletSelection,
 } from "@/types/universe";
 
 const CLICKABLE_STAR_COUNT = countClickableStars(getHolderGroups());
-const PYRE_POSITION: [number, number, number] = [0, 0, 0];
-
-type SearchLocatorState = {
-  key: number;
-  target: LocatorTarget | null;
-  highlightPersist: boolean;
+type FoundStarState = {
+  position: [number, number, number];
+  active: boolean;
 };
 
-const INITIAL_SEARCH_LOCATOR: SearchLocatorState = {
-  key: 0,
-  target: null,
-  highlightPersist: false,
+type OuterHighlightState = {
+  wallet: string;
+  active: boolean;
 };
 
 function useReducedMotion() {
@@ -112,16 +104,15 @@ function SceneContent({
   outerStars,
   hoveredId,
   hoveredCore,
-  locatorTarget,
-  locatorKey,
-  highlightPersist,
+  dimKey,
+  foundStar,
+  outerHighlight,
   reducedMotion,
   isMobile,
   controlsRef,
   resetKey,
   selectedId,
   starHoverRef,
-  onHighlightDismissed,
   onHover,
   onSelect,
   onEmptyClick,
@@ -133,16 +124,15 @@ function SceneContent({
   outerStars: OuterHolderStar[];
   hoveredId: string | null;
   hoveredCore: boolean;
-  locatorTarget: LocatorTarget | null;
-  locatorKey: number;
-  highlightPersist: boolean;
+  dimKey: number;
+  foundStar: FoundStarState | null;
+  outerHighlight: OuterHighlightState | null;
   reducedMotion: boolean;
   isMobile: boolean;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   resetKey: number;
   selectedId: string | null;
   starHoverRef: React.RefObject<HolderGroupStar | null>;
-  onHighlightDismissed: () => void;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
@@ -176,16 +166,18 @@ function SceneContent({
           particleHalo: layerDebug.galaxyParticleHalo,
         }}
       />
-      <SearchLocator
-        target={locatorTarget}
-        locatorKey={locatorKey}
-        highlightPersist={highlightPersist}
-        onHighlightDismissed={onHighlightDismissed}
+      <SearchLocator dimKey={dimKey} />
+
+      <OuterHolderStars
+        stars={outerStars}
+        highlightWallet={outerHighlight?.wallet ?? null}
+        highlightActive={outerHighlight?.active ?? false}
       />
 
-      <SearchHighlightStar target={locatorTarget} locatorKey={locatorKey} />
-
-      <OuterHolderStars stars={outerStars} />
+      {/* Top-75 search highlight — outer stars highlight in-place via instanced mesh */}
+      {foundStar ? (
+        <FoundStar position={foundStar.position} active={foundStar.active} />
+      ) : null}
       {layerDebug.cosmicDust ? <CosmicDust /> : null}
       <HolderGroupStars
         groups={holderGroups}
@@ -322,13 +314,14 @@ export default function UniverseScene() {
     null,
   );
   const [searchNotFound, setSearchNotFound] = useState(false);
-  const [searchLocator, setSearchLocator] = useState<SearchLocatorState>(
-    INITIAL_SEARCH_LOCATOR,
-  );
-  const handleHighlightDismissed = useCallback(() => {
-    setSearchLocator((prev) =>
-      prev.highlightPersist ? prev : { ...prev, target: null },
-    );
+  const [dimKey, setDimKey] = useState(0);
+  const [foundStar, setFoundStar] = useState<FoundStarState | null>(null);
+  const [outerHighlight, setOuterHighlight] =
+    useState<OuterHighlightState | null>(null);
+
+  const deactivateSearchHighlights = useCallback(() => {
+    setFoundStar((prev) => (prev ? { ...prev, active: false } : null));
+    setOuterHighlight((prev) => (prev ? { ...prev, active: false } : null));
   }, []);
 
   const handleHover = useCallback(
@@ -352,23 +345,20 @@ export default function UniverseScene() {
   const handleSelect = useCallback((group: HolderGroupStar) => {
     setWalletSelection(holderToWalletSelection(group));
     setPyreOpen(false);
-    setSearchLocator((prev) => ({ ...prev, highlightPersist: false }));
-  }, []);
+    deactivateSearchHighlights();
+  }, [deactivateSearchHighlights]);
 
   const handleCoreSelect = useCallback(() => {
     setPyreOpen(true);
     setWalletSelection(null);
-    setSearchLocator((prev) => ({ ...prev, highlightPersist: false }));
-  }, []);
+    deactivateSearchHighlights();
+  }, [deactivateSearchHighlights]);
 
   const handleClosePanel = useCallback(() => {
     setWalletSelection(null);
     setPyreOpen(false);
-    setSearchLocator((prev) => ({
-      ...prev,
-      highlightPersist: false,
-    }));
-  }, []);
+    deactivateSearchHighlights();
+  }, [deactivateSearchHighlights]);
 
   const handleEmptyClick = useCallback(() => {
     handleClosePanel();
@@ -381,25 +371,28 @@ export default function UniverseScene() {
     setResetKey((k) => k + 1);
   }, []);
 
-  const activateHolderLocator = useCallback(
+  const activateHolderSearch = useCallback(
     (match: NonNullable<ReturnType<typeof findHolderByWallet>>) => {
-      const target = locatorFromHolderMatch(match, holderGroups);
-      if (!target) return;
-
-      setSearchLocator((prev) => ({
-        key: prev.key + 1,
-        target,
-        highlightPersist: true,
-      }));
+      setDimKey((k) => k + 1);
 
       if (match.kind === "top75") {
+        setOuterHighlight(null);
+        setFoundStar({
+          position: [...match.star.position],
+          active: true,
+        });
         setWalletSelection(holderToWalletSelection(match.star));
       } else {
+        setFoundStar(null);
+        setOuterHighlight({
+          wallet: normalizeWalletAddress(match.star.wallet ?? match.star.id),
+          active: true,
+        });
         setWalletSelection(outerToWalletSelection(match.star));
       }
       setPyreOpen(false);
     },
-    [holderGroups],
+    [],
   );
 
   const handleSearch = useCallback(
@@ -422,7 +415,7 @@ export default function UniverseScene() {
           setSearchNotFound(true);
           return;
         }
-        activateHolderLocator(match);
+        activateHolderSearch(match);
         return;
       }
 
@@ -438,17 +431,8 @@ export default function UniverseScene() {
           | { status: "burned"; tokenId: string };
 
         if (data.status === "burned") {
-          const pyreTarget: LocatorTarget = {
-            kind: "pyre",
-            tokenId: data.tokenId,
-            label: `#${data.tokenId} was burned`,
-            position: PYRE_POSITION,
-          };
-          setSearchLocator((prev) => ({
-            key: prev.key + 1,
-            target: pyreTarget,
-            highlightPersist: true,
-          }));
+          deactivateSearchHighlights();
+          setDimKey((k) => k + 1);
           setWalletSelection(null);
           setPyreOpen(true);
           return;
@@ -463,12 +447,12 @@ export default function UniverseScene() {
           setSearchNotFound(true);
           return;
         }
-        activateHolderLocator(match);
+        activateHolderSearch(match);
       } catch {
         setSearchNotFound(true);
       }
     },
-    [holderGroups, outerStars, activateHolderLocator],
+    [holderGroups, outerStars, activateHolderSearch, deactivateSearchHighlights],
   );
 
   return (
@@ -504,16 +488,15 @@ export default function UniverseScene() {
                 )?.id ?? null
               : null
           }
-          locatorTarget={searchLocator.target}
-          locatorKey={searchLocator.key}
-          highlightPersist={searchLocator.highlightPersist}
+          dimKey={dimKey}
+          foundStar={foundStar}
+          outerHighlight={outerHighlight}
           hoveredCore={hoveredCore}
           reducedMotion={reducedMotion}
           isMobile={isMobile}
           controlsRef={controlsRef}
           resetKey={resetKey}
           starHoverRef={starHoverRef}
-          onHighlightDismissed={handleHighlightDismissed}
           onHover={handleHover}
           onSelect={handleSelect}
           onPyreClick={handleCoreSelect}

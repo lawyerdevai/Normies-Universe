@@ -2,7 +2,6 @@ import type { StarPlacement } from "./generateStarPositions";
 import * as THREE from "three";
 import {
   createDefaultCamera,
-  DEFAULT_CAMERA_FAR,
   DEFAULT_CAMERA_POSITION,
 } from "./cameraConfig";
 import {
@@ -17,12 +16,13 @@ const GALAXY_SCALE = 1.15;
 const ARM_HALO_PADDING = 14;
 const DEEP_SPACE_CLEARANCE = 30;
 
+/** Match galaxy holder depth — not the far plane (~480). */
+export const OUTER_HOLDER_CAM_DIST_MIN = 140;
+export const OUTER_HOLDER_CAM_DIST_MAX = 230;
+
 /** 5% inset from each screen edge → NDC half-extent 0.9. */
 export const OUTER_STAR_NDC_MARGIN = 0.05;
 export const OUTER_STAR_NDC_LIMIT = 1 - OUTER_STAR_NDC_MARGIN * 2;
-
-const CAMERA_FAR_LIMIT = DEFAULT_CAMERA_FAR * 0.96;
-const MIN_CAMERA_DEPTH = 1.2;
 
 const _camera = createDefaultCamera();
 const _cameraPos = DEFAULT_CAMERA_POSITION.clone();
@@ -74,37 +74,33 @@ function rayFromNdc(ndcX: number, ndcY: number): THREE.Vector3 {
 }
 
 /**
- * Valid camera-depth interval where the point stays in deep space,
- * in front of the camera, and within the far plane.
+ * Camera-distance interval (unit ray → t equals distance from camera)
+ * inside the galaxy-depth band and outside the arm structure.
  */
-function validDepthRange(dir: THREE.Vector3): { tMin: number; tMax: number } {
+function validCameraDistanceRange(
+  dir: THREE.Vector3,
+): { tMin: number; tMax: number } | null {
+  let tMin = OUTER_HOLDER_CAM_DIST_MIN;
+  let tMax = OUTER_HOLDER_CAM_DIST_MAX;
+
   const cd = _cameraPos.dot(dir);
   const c2 = _cameraPos.lengthSq();
-  const rMin = R_INNER;
-  const minDistSq = c2 - cd * cd;
-  const disc = cd * cd - (c2 - rMin * rMin);
+  const disc = cd * cd - (c2 - R_INNER * R_INNER);
 
-  let tMin = MIN_CAMERA_DEPTH;
-  let tMax = CAMERA_FAR_LIMIT;
-
-  if (minDistSq < rMin * rMin && disc > 0) {
+  if (disc >= 0) {
     const sqrtDisc = Math.sqrt(disc);
     const tExit = -cd + sqrtDisc;
     const tEnter = -cd - sqrtDisc;
 
-    if (tExit > MIN_CAMERA_DEPTH && tExit < tMax) {
-      tMin = Math.max(MIN_CAMERA_DEPTH, tExit + 0.5);
-    } else if (tEnter > MIN_CAMERA_DEPTH) {
+    if (tExit > 0) {
+      tMin = Math.max(tMin, tExit + 0.5);
+    }
+    if (tEnter > 0) {
       tMax = Math.min(tMax, tEnter - 0.5);
-      tMin = MIN_CAMERA_DEPTH;
     }
   }
 
-  if (tMax <= tMin) {
-    tMin = MIN_CAMERA_DEPTH;
-    tMax = CAMERA_FAR_LIMIT;
-  }
-
+  if (tMax <= tMin) return null;
   return { tMin, tMax };
 }
 
@@ -138,46 +134,70 @@ function isVisiblePlacement(position: [number, number, number]) {
     ndc.x <= limit &&
     ndc.y >= -limit &&
     ndc.y <= limit &&
-    camDist <= CAMERA_FAR_LIMIT &&
-    camDist >= MIN_CAMERA_DEPTH &&
+    camDist >= OUTER_HOLDER_CAM_DIST_MIN &&
+    camDist <= OUTER_HOLDER_CAM_DIST_MAX &&
     distanceFromCenter(position) >= R_INNER
   );
 }
 
+function depthTFromHash(hash: number, salt: number): number {
+  return clamp(
+    0.12 +
+      hashUnit(hash, 7 + salt) * 0.76 +
+      Math.sin(hashUnit(hash, 13 + salt) * Math.PI * 2) * 0.1,
+    0,
+    1,
+  );
+}
+
+function placeOnRay(
+  ndcX: number,
+  ndcY: number,
+  hash: number,
+  salt: number,
+): [number, number, number] | null {
+  const dir = rayFromNdc(ndcX, ndcY);
+  const range = validCameraDistanceRange(dir);
+  if (!range) return null;
+
+  const t = range.tMin + depthTFromHash(hash, salt) * (range.tMax - range.tMin);
+  return positionOnRay(dir, t);
+}
+
 /**
- * Deterministic deep-space placement from wallet hash — every holder
- * beyond rank 75 projects inside the default camera frame (5% margin),
- * stays beyond the galaxy arms, and remains within the far plane.
+ * Deterministic placement from wallet hash — lateral spread across the
+ * sky at galaxy depth (~140–230 from camera), beyond the arms, on-screen.
  */
 export function placeOuterHolderStar(wallet: string): StarPlacement {
   const hash = hashSeed(wallet.toLowerCase());
   const [ndcX, ndcY] = ndcFromHash(hash);
-  const dir = rayFromNdc(ndcX, ndcY);
-  const { tMin, tMax } = validDepthRange(dir);
 
-  const depthT =
-    0.28 +
-    hashUnit(hash, 7) * 0.52 +
-    Math.sin(hashUnit(hash, 13) * Math.PI * 2) * 0.12;
-  let t = tMin + depthT * (tMax - tMin);
+  let position = placeOnRay(ndcX, ndcY, hash, 0);
 
-  let position = positionOnRay(dir, t);
-
-  if (!isVisiblePlacement(position)) {
+  if (!position || !isVisiblePlacement(position)) {
     for (let i = 1; i <= 6; i++) {
-      const retryT = tMin + ((hashUnit(hash, 20 + i) * 0.86 + 0.07) % 1) * (tMax - tMin);
-      position = positionOnRay(dir, retryT);
-      if (isVisiblePlacement(position)) break;
+      const retryNdcX = clamp(
+        ndcX + (hashUnit(hash, 20 + i) - 0.5) * 0.35,
+        -OUTER_STAR_NDC_LIMIT,
+        OUTER_STAR_NDC_LIMIT,
+      );
+      const retryNdcY = clamp(
+        ndcY + (hashUnit(hash, 27 + i) - 0.5) * 0.35,
+        -OUTER_STAR_NDC_LIMIT,
+        OUTER_STAR_NDC_LIMIT,
+      );
+      position = placeOnRay(retryNdcX, retryNdcY, hash, i);
+      if (position && isVisiblePlacement(position)) break;
     }
   }
 
-  if (!isVisiblePlacement(position)) {
-    const fallbackDir = rayFromNdc(ndcX * 0.55, ndcY * 0.55);
-    const fallbackRange = validDepthRange(fallbackDir);
-    const fallbackT =
-      fallbackRange.tMin +
-      0.5 * (fallbackRange.tMax - fallbackRange.tMin);
-    position = positionOnRay(fallbackDir, fallbackT);
+  if (!position || !isVisiblePlacement(position)) {
+    position =
+      placeOnRay(ndcX * 0.55, ndcY * 0.55, hash, 99) ??
+      positionOnRay(
+        rayFromNdc(ndcX * 0.55, ndcY * 0.55),
+        (OUTER_HOLDER_CAM_DIST_MIN + OUTER_HOLDER_CAM_DIST_MAX) * 0.5,
+      );
   }
 
   return {

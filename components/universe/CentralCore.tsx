@@ -5,7 +5,6 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { generatePyreParticles } from "@/lib/universe/generatePyre";
 import { isPointerOverPyre } from "@/lib/universe/isPointerOverPyre";
-import { searchHighlightStore } from "@/lib/universe/searchHighlightStore";
 import type { HolderGroupStar } from "@/types/universe";
 
 const GALAXY_EULER = new THREE.Euler(0.28, 0.15, 0.35, "XYZ");
@@ -195,13 +194,7 @@ export default function CentralCore({
       }
     }
 
-    const pyreGleam = searchHighlightStore.pyreGleam;
-    const gleam = searchHighlightStore.glimmer;
-
-    material.uniforms.uHoverBoost.value = Math.max(
-      isHovered ? 1.1 : 1,
-      1 + pyreGleam * 0.42,
-    );
+    material.uniforms.uHoverBoost.value = isHovered ? 1.1 : 1;
 
     const brightnessAttr = geometry.getAttribute(
       "aBrightness",
@@ -228,9 +221,8 @@ export default function CentralCore({
     }
 
     material.uniforms.uFieldPulse.value = reducedMotion
-      ? 1 + pyreGleam * 0.12 * gleam
-      : fieldPulse *
-        (1 + thunder * 0.1 + pyreGleam * 0.18 * gleam);
+      ? 1
+      : fieldPulse * (1 + thunder * 0.1);
 
     if (reducedMotion) return;
 
@@ -250,15 +242,9 @@ export default function CentralCore({
 
       brightnessAttr.setX(
         i,
-        base *
-          flicker *
-          (1 + glint * 0.35) *
-          (1 + thunder * 0.32 + pyreGleam * 0.38 * gleam),
+        base * flicker * (1 + glint * 0.35) * (1 + thunder * 0.32),
       );
-      flareAttr.setX(
-        i,
-        Math.max(glint, thunder * 0.38, pyreGleam * 0.55 * gleam),
-      );
+      flareAttr.setX(i, Math.max(glint, thunder * 0.38));
     }
 
     brightnessAttr.needsUpdate = true;
