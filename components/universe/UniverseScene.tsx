@@ -15,6 +15,7 @@ import GalaxyAtmosphere from "@/components/universe/GalaxyAtmosphere";
 import HolderGroupStars from "@/components/universe/HolderGroupStars";
 import FoundStar from "@/components/universe/FoundStar";
 import DeepSpaceGlimmer from "@/components/universe/DeepSpaceGlimmer";
+import BurnerStars from "@/components/universe/BurnerStars";
 import OuterHolderStars from "@/components/universe/OuterHolderStars";
 import SearchLocator from "@/components/universe/SearchLocator";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
@@ -32,6 +33,13 @@ import {
   MAX_POLAR_ANGLE,
 } from "@/lib/universe/cameraConfig";
 import {
+  applyBurnerColorsToTop75,
+  buildDedicatedBurnerStars,
+  filterBurnersFromOuterStars,
+  top75WalletSet,
+} from "@/lib/universe/buildBurnerStars";
+import type { BurnersApiResponse } from "@/lib/universe/burnerStarConfig";
+import {
   assignHoldersToStars,
   buildOuterHolderStars,
   countClickableStars,
@@ -43,6 +51,7 @@ import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
 import { parseSearchQuery } from "@/lib/universe/resolveSearch";
 import type { RankedHolder } from "@/lib/opensea/holders";
 import type {
+  BurnerStar,
   HolderGroupStar,
   OuterHolderStar,
   WalletSelection,
@@ -100,6 +109,15 @@ function outerToWalletSelection(star: OuterHolderStar): WalletSelection {
   };
 }
 
+function burnerToWalletSelection(star: BurnerStar): WalletSelection {
+  return {
+    wallet: normalizeWalletAddress(star.wallet),
+    walletDisplay: star.walletDisplay,
+    normieCount: star.normieCount,
+    rank: star.collectionRank,
+  };
+}
+
 function searchedStarIndex(
   groups: HolderGroupStar[],
   foundStar: FoundStarState | null,
@@ -117,7 +135,9 @@ function searchedStarIndex(
 function SceneContent({
   holderGroups,
   outerStars,
+  burnerStars,
   hoveredId,
+  hoveredBurnerId,
   hoveredCore,
   dimKey,
   foundStar,
@@ -127,9 +147,13 @@ function SceneContent({
   controlsRef,
   resetKey,
   selectedId,
+  selectedBurnerId,
   starHoverRef,
+  burnerCaptureRef,
   onHover,
+  onBurnerHover,
   onSelect,
+  onBurnerSelect,
   onEmptyClick,
   onCoreHover,
   onPyreClick,
@@ -138,7 +162,9 @@ function SceneContent({
 }: {
   holderGroups: HolderGroupStar[];
   outerStars: OuterHolderStar[];
+  burnerStars: BurnerStar[];
   hoveredId: string | null;
+  hoveredBurnerId: string | null;
   hoveredCore: boolean;
   dimKey: number;
   foundStar: FoundStarState | null;
@@ -148,12 +174,19 @@ function SceneContent({
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   resetKey: number;
   selectedId: string | null;
+  selectedBurnerId: string | null;
   starHoverRef: React.RefObject<HolderGroupStar | null>;
+  burnerCaptureRef: React.RefObject<boolean>;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
   ) => void;
+  onBurnerHover: (
+    star: BurnerStar | null,
+    screenPos?: { x: number; y: number },
+  ) => void;
   onSelect: (group: HolderGroupStar) => void;
+  onBurnerSelect: (star: BurnerStar) => void;
   onEmptyClick: () => void;
   onCoreHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
   onPyreClick: () => void;
@@ -194,7 +227,16 @@ function SceneContent({
         avoidPositions={[
           ...holderGroups.map((g) => g.position),
           ...outerStars.map((s) => s.position),
+          ...burnerStars.map((s) => s.position),
         ]}
+      />
+      <BurnerStars
+        stars={burnerStars}
+        hoveredId={hoveredBurnerId}
+        selectedId={selectedBurnerId}
+        captureRef={burnerCaptureRef}
+        onHover={onBurnerHover}
+        onSelect={onBurnerSelect}
       />
 
       {/* Top-75 search highlight — outer stars highlight in-place via instanced mesh */}
@@ -218,6 +260,8 @@ function SceneContent({
         onSelect={onSelect}
         onPyreClick={onPyreClick}
         onEmptyClick={onEmptyClick}
+        skipClickIfBurnerHovered={() => burnerCaptureRef.current}
+        skipHoverIfBurnerCaptured={burnerCaptureRef}
       />
       <CentralCore
         isHovered={hoveredCore}
@@ -291,6 +335,12 @@ export default function UniverseScene() {
     getHolderGroups(),
   );
   const [outerStars, setOuterStars] = useState<OuterHolderStar[]>([]);
+  const [burnerStars, setBurnerStars] = useState<BurnerStar[]>([]);
+  const [rankedHolders, setRankedHolders] = useState<RankedHolder[]>([]);
+  const [burnerData, setBurnerData] = useState<BurnersApiResponse | null>(
+    null,
+  );
+  const burnerCaptureRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -302,18 +352,16 @@ export default function UniverseScene() {
         const data = (await res.json()) as { rankedHolders: RankedHolder[] };
         if (cancelled) return;
 
-        const assigned = assignHoldersToStars(
-          getHolderGroups(),
-          data.rankedHolders,
-        );
-        const outer = buildOuterHolderStars(data.rankedHolders);
-        setHolderGroups(assigned);
-        setOuterStars(outer);
+        setRankedHolders(data.rankedHolders);
 
         if (process.env.NODE_ENV === "development") {
+          const assigned = assignHoldersToStars(
+            getHolderGroups(),
+            data.rankedHolders,
+          );
           const check = verifyAssignment(assigned);
           console.info(
-            `[Normie Universe] N=${CLICKABLE_STAR_COUNT} top holder stars; ${outer.length} outer holder stars`,
+            `[Normie Universe] N=${CLICKABLE_STAR_COUNT} top holder stars; ${buildOuterHolderStars(data.rankedHolders).length} outer holder stars`,
             check,
           );
         }
@@ -328,7 +376,63 @@ export default function UniverseScene() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/burners")
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json() as Promise<BurnersApiResponse>;
+      })
+      .then((data) => {
+        if (cancelled || !data) return;
+        setBurnerData(data);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!rankedHolders.length) return;
+
+    const baseGroups = assignHoldersToStars(
+      getHolderGroups(),
+      rankedHolders,
+    );
+    const outer = buildOuterHolderStars(rankedHolders);
+
+    if (!burnerData?.burners?.length) {
+      setHolderGroups(baseGroups);
+      setOuterStars(outer);
+      setBurnerStars([]);
+      return;
+    }
+
+    const colored = applyBurnerColorsToTop75(baseGroups, burnerData.burners);
+    const top75 = top75WalletSet(colored);
+    const filteredOuter = filterBurnersFromOuterStars(outer, burnerData.burners);
+    const dedicated = buildDedicatedBurnerStars(
+      burnerData.burners,
+      top75,
+      rankedHolders,
+    );
+
+    setHolderGroups(colored);
+    setOuterStars(filteredOuter);
+    setBurnerStars(dedicated);
+
+    if (process.env.NODE_ENV === "development") {
+      console.info(
+        `[Normie Universe] ${burnerData.burners.length} burner wallets; ${dedicated.length} dedicated burner stars`,
+      );
+    }
+  }, [rankedHolders, burnerData]);
+
   const [hoveredGroup, setHoveredGroup] = useState<HolderGroupStar | null>(null);
+  const [hoveredBurner, setHoveredBurner] = useState<BurnerStar | null>(null);
   const [walletSelection, setWalletSelection] = useState<WalletSelection | null>(
     null,
   );
@@ -376,8 +480,21 @@ export default function UniverseScene() {
   const handleHover = useCallback(
     (group: HolderGroupStar | null, screenPos?: { x: number; y: number }) => {
       setHoveredGroup(group);
+      if (group) setHoveredBurner(null);
       setHoveredCore(false);
       setTooltipPos(screenPos ?? null);
+    },
+    [],
+  );
+
+  const handleBurnerHover = useCallback(
+    (star: BurnerStar | null, screenPos?: { x: number; y: number }) => {
+      setHoveredBurner(star);
+      if (star) {
+        setHoveredGroup(null);
+        setHoveredCore(false);
+        setTooltipPos(screenPos ?? null);
+      }
     },
     [],
   );
@@ -397,6 +514,16 @@ export default function UniverseScene() {
     setPyreSearchedBurn(null);
     deactivateSearchHighlights();
   }, [deactivateSearchHighlights]);
+
+  const handleBurnerSelect = useCallback(
+    (star: BurnerStar) => {
+      setWalletSelection(burnerToWalletSelection(star));
+      setPyreOpen(false);
+      setPyreSearchedBurn(null);
+      deactivateSearchHighlights();
+    },
+    [deactivateSearchHighlights],
+  );
 
   const handleCoreSelect = useCallback(() => {
     setPyreSearchedBurn(null);
@@ -418,6 +545,7 @@ export default function UniverseScene() {
 
   const handleResetCamera = useCallback(() => {
     setHoveredGroup(null);
+    setHoveredBurner(null);
     setHoveredCore(false);
     setTooltipPos(null);
     setResetKey((k) => k + 1);
@@ -534,7 +662,9 @@ export default function UniverseScene() {
         <SceneContent
           holderGroups={holderGroups}
           outerStars={outerStars}
+          burnerStars={burnerStars}
           hoveredId={hoveredGroup?.id ?? null}
+          hoveredBurnerId={hoveredBurner?.id ?? null}
           selectedId={
             walletSelection
               ? holderGroups.find(
@@ -542,6 +672,15 @@ export default function UniverseScene() {
                     g.wallet &&
                     normalizeWalletAddress(g.wallet) ===
                       normalizeWalletAddress(walletSelection.wallet),
+                )?.id ?? null
+              : null
+          }
+          selectedBurnerId={
+            walletSelection
+              ? burnerStars.find(
+                  (s) =>
+                    normalizeWalletAddress(s.wallet) ===
+                    normalizeWalletAddress(walletSelection.wallet),
                 )?.id ?? null
               : null
           }
@@ -554,8 +693,11 @@ export default function UniverseScene() {
           controlsRef={controlsRef}
           resetKey={resetKey}
           starHoverRef={starHoverRef}
+          burnerCaptureRef={burnerCaptureRef}
           onHover={handleHover}
+          onBurnerHover={handleBurnerHover}
           onSelect={handleSelect}
+          onBurnerSelect={handleBurnerSelect}
           onPyreClick={handleCoreSelect}
           onEmptyClick={handleEmptyClick}
           onCoreHover={handleCoreHover}
@@ -578,6 +720,7 @@ export default function UniverseScene() {
 
       <StarTooltip
         group={hoveredGroup}
+        burnerStar={hoveredBurner}
         showCore={hoveredCore}
         position={tooltipPos}
         totalBurned={totalBurned}

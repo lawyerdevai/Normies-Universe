@@ -17,6 +17,25 @@ export type HolderGroupStar = {
   wallet?: string;
   walletDisplay?: string;
   collectionRank?: number;
+  burnedCount?: number;
+  burnerTier?: 1 | 2;
+};
+
+export type BurnerStar = {
+  id: string;
+  wallet: string;
+  walletDisplay: string;
+  burnedCount: number;
+  tier: 1 | 2;
+  normieCount: number;
+  collectionRank?: number;
+  position: [number, number, number];
+  color: string;
+  coreSize: number;
+  glowSize: number;
+  glowOpacity: number;
+  sparkle: number;
+  brightness: number;
 };
 
 export type AmbientStar = {

@@ -86,10 +86,20 @@ function aggregateBurners(commits: BurnCommitment[]) {
     .sort((a, b) => b.burnedCount - a.burnedCount)
     .slice(0, 20);
 
+  const burners = [...totals.entries()]
+    .filter(([, burnedCount]) => burnedCount >= 11)
+    .map(([address, burnedCount]) => ({
+      address,
+      burnedCount,
+      tier: (burnedCount >= 50 ? 1 : 2) as 1 | 2,
+    }))
+    .sort((a, b) => b.burnedCount - a.burnedCount);
+
   return {
     totalBurners: totals.size,
     distribution,
     top20,
+    burners,
   };
 }
 

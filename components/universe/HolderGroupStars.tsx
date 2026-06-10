@@ -34,6 +34,8 @@ interface HolderGroupStarsProps {
   onSelect: (group: HolderGroupStar) => void;
   onPyreClick: () => void;
   onEmptyClick: () => void;
+  skipClickIfBurnerHovered?: () => boolean;
+  skipHoverIfBurnerCaptured?: React.RefObject<boolean>;
 }
 
 const _projected = new THREE.Vector3();
@@ -187,6 +189,8 @@ export default function HolderGroupStars({
   onSelect,
   onPyreClick,
   onEmptyClick,
+  skipClickIfBurnerHovered,
+  skipHoverIfBurnerCaptured,
 }: HolderGroupStarsProps) {
   const showVisible = debugLayers?.visible ?? true;
   const showGlow = debugLayers?.glow ?? true;
@@ -297,6 +301,7 @@ export default function HolderGroupStars({
     const canvas = gl.domElement;
 
     const handleClick = () => {
+      if (skipClickIfBurnerHovered?.()) return;
       const nearest = pickNearestGroup(
         pointer,
         camera,
@@ -328,6 +333,7 @@ export default function HolderGroupStars({
     onSelect,
     onPyreClick,
     onEmptyClick,
+    skipClickIfBurnerHovered,
   ]);
 
   useFrame(({ clock }) => {
@@ -368,6 +374,11 @@ export default function HolderGroupStars({
       material.uniforms.uGlintIndex.value = -1;
       material.uniforms.uGlintBoost.value = 0;
       material.uniforms.uGlintSizeBoost.value = 0;
+    }
+
+    if (skipHoverIfBurnerCaptured?.current) {
+      if (hoverRef) hoverRef.current = null;
+      return;
     }
 
     const nearest = pickNearestGroup(

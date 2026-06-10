@@ -14,6 +14,12 @@ export { placeTopHolderStar, PLACEMENT_SEED } from "./placeTopHolderStar";
 export { scatterForRank } from "./holderStarScatter";
 export { resolveHolderStarSpacing } from "./resolveHolderStarSpacing";
 export { buildOuterHolderStars } from "./buildOuterHolderStars";
+export {
+  applyBurnerColorsToTop75,
+  buildDedicatedBurnerStars,
+  filterBurnersFromOuterStars,
+  top75WalletSet,
+} from "./buildBurnerStars";
 export { buildDecorativeSkyStars } from "./buildDecorativeSkyStars";
 export { placeOuterHolderStar } from "./placeOuterHolderStar";
 export { findHolderByWallet, normalizeWalletAddress } from "./searchHolderStars";
