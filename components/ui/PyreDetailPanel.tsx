@@ -1,6 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  PANEL_ACCENT,
+  panelAccentLine,
+  panelBody,
+  panelCloseButton,
+  panelEmpty,
+  panelHeader,
+  panelLabel,
+  panelSectionTitle,
+  panelShell,
+  panelStatValue,
+  panelTitle,
+} from "@/components/ui/panelStyles";
 
 type PyreData = {
   totalBurned: number;
@@ -98,8 +111,8 @@ function SearchedBurnHeader({ tokenId, burnedAt }: SearchedBurn) {
   const [loaded, setLoaded] = useState(false);
 
   return (
-    <div className="border-b border-white/8 px-4 py-4">
-      <div className="relative mx-auto h-24 w-24 overflow-hidden rounded border border-white/10 bg-white/[0.03]">
+    <div className="px-3 py-3">
+      <div className="relative mx-auto h-24 w-24 overflow-hidden rounded-[4px] bg-white/[0.03]">
         {!loaded ? (
           <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.06] via-white/[0.02] to-white/[0.05]" />
         ) : null}
@@ -175,12 +188,7 @@ export default function PyreDetailPanel({
       : null;
 
   return (
-    <aside
-      aria-hidden={!open}
-      className={`pointer-events-auto fixed right-0 top-0 z-40 flex h-full w-[320px] flex-col border-l border-white/10 bg-black/55 shadow-2xl backdrop-blur-xl transition-transform duration-300 ease-out ${
-        open ? "translate-x-0" : "translate-x-full"
-      }`}
-    >
+    <aside aria-hidden={!open} className={panelShell(open)}>
       {searchedBurn ? (
         <SearchedBurnHeader
           tokenId={searchedBurn.tokenId}
@@ -188,63 +196,67 @@ export default function PyreDetailPanel({
         />
       ) : null}
 
-      <div className="flex items-start justify-between gap-3 border-b border-white/8 px-4 py-4">
+      <div className={panelHeader}>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-medium text-white/85">The Pyre</h2>
-          <dl className="mt-3 space-y-2 text-xs text-white/55">
+          <h2 className={panelTitle}>The Core</h2>
+          <p className={panelAccentLine}>
+            {loading && !data ? (
+              <span className="inline-block h-3.5 w-28 animate-pulse rounded bg-white/10" />
+            ) : (
+              <span style={{ color: PANEL_ACCENT }}>
+                {(data?.totalBurned ?? 0).toLocaleString()} Normies burned
+              </span>
+            )}
+          </p>
+          <div className="mt-2 space-y-1">
             <div>
-              <dt className="text-white/40">Total burned</dt>
-              <dd className="mt-0.5 tabular-nums text-white/80">
+              <p className={panelLabel}>ETH at current floor</p>
+              <p className={panelStatValue}>
                 {loading && !data ? (
-                  <span className="inline-block h-3 w-12 animate-pulse rounded bg-white/10" />
-                ) : (
-                  (data?.totalBurned ?? 0).toLocaleString()
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-white/40">ETH at current floor</dt>
-              <dd className="mt-0.5 tabular-nums text-white/80">
-                {loading && !data ? (
-                  <span className="inline-block h-3 w-16 animate-pulse rounded bg-white/10" />
+                  <span className="inline-block h-2.5 w-16 animate-pulse rounded bg-white/10" />
                 ) : ethAtFloor !== null ? (
                   `≈ ${formatEth(ethAtFloor)} ETH`
                 ) : (
                   "—"
                 )}
-              </dd>
+              </p>
             </div>
             <div>
-              <dt className="text-white/40">Largest single burn</dt>
-              <dd className="mt-0.5 text-white/80">
+              <p className={panelLabel}>Largest single burn</p>
+              <p className={panelStatValue}>
                 {loading && !data ? (
-                  <span className="inline-block h-3 w-24 animate-pulse rounded bg-white/10" />
+                  <span className="inline-block h-2.5 w-24 animate-pulse rounded bg-white/10" />
                 ) : data?.largestBurn.count ? (
                   <>
-                    {data.largestBurn.count.toLocaleString()} Normies ·{" "}
-                    {formatDate(data.largestBurn.timestamp)}
+                    <span style={{ color: PANEL_ACCENT }}>
+                      {data.largestBurn.count.toLocaleString()} Normies
+                    </span>
+                    <span className="text-white/35">
+                      {" "}
+                      · {formatDate(data.largestBurn.timestamp)}
+                    </span>
                   </>
                 ) : (
-                  "0 Normies · —"
+                  <>
+                    <span className="text-white/35">0 Normies · —</span>
+                  </>
                 )}
-              </dd>
+              </p>
             </div>
-          </dl>
+          </div>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close panel"
-          className="shrink-0 rounded-md border border-white/10 px-2 py-1 text-sm text-white/50 transition-colors hover:border-white/20 hover:text-white/80"
+          className={panelCloseButton}
         >
           ×
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-white/40">
-          Recent burns
-        </h3>
+      <div className={panelBody}>
+        <h3 className={panelSectionTitle}>Recent burns</h3>
 
         {error ? <p className="text-xs text-red-300/70">{error}</p> : null}
 
@@ -263,7 +275,7 @@ export default function PyreDetailPanel({
         ) : null}
 
         {!loading && data && data.recentBurns.length === 0 ? (
-          <p className="text-xs text-white/35">No recent burns.</p>
+          <p className={panelEmpty}>No recent burns.</p>
         ) : null}
 
         {data && data.recentBurns.length > 0 ? (
@@ -275,10 +287,10 @@ export default function PyreDetailPanel({
               >
                 <BurnThumbnail tokenId={burn.tokenId} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs tabular-nums text-white/75">
+                  <p className="text-sm tabular-nums text-white/80">
                     #{burn.tokenId}
                   </p>
-                  <p className="text-[10px] text-white/40">
+                  <p className={panelLabel}>
                     {formatRelativeTime(burn.timestamp)}
                   </p>
                 </div>

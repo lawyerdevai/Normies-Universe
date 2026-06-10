@@ -74,8 +74,8 @@ export default function StarTooltip({
       >
         <p className="text-xs font-medium text-amber-50/90">
           {totalBurned != null
-            ? `The Pyre · ${totalBurned.toLocaleString()} Normies burned`
-            : "The Pyre"}
+            ? `The Core · ${totalBurned.toLocaleString()} Normies burned`
+            : "The Core"}
         </p>
       </div>
     );

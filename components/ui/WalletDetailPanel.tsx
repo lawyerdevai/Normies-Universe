@@ -1,6 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  PANEL_ACCENT,
+  panelAccentLine,
+  panelBody,
+  panelCloseButton,
+  panelEmpty,
+  panelHeader,
+  panelMetaButton,
+  panelShell,
+  panelTitle,
+} from "@/components/ui/panelStyles";
 import type { WalletSelection } from "@/types/universe";
 
 type WalletData = {
@@ -39,12 +50,12 @@ function NormieThumbnail({ id }: { id: string }) {
   }, []);
 
   return (
-    <div ref={ref} className="flex flex-col items-center gap-1">
-      <div className="relative aspect-square w-full overflow-hidden rounded-md border border-white/8 bg-white/[0.03]">
+    <div ref={ref} className="flex flex-col items-center gap-0.5">
+      <div className="relative aspect-square w-full overflow-hidden rounded-[4px] bg-white/[0.03]">
         {inView ? (
           <>
             {!loaded ? (
-              <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.06] via-white/[0.02] to-white/[0.05]" />
+              <div className="absolute inset-0 animate-pulse rounded-[4px] bg-gradient-to-br from-white/[0.06] via-white/[0.02] to-white/[0.05]" />
             ) : null}
             <img
               src={`https://api.normies.art/normie/${id}/image.png`}
@@ -52,16 +63,16 @@ function NormieThumbnail({ id }: { id: string }) {
               loading="lazy"
               decoding="async"
               onLoad={() => setLoaded(true)}
-              className={`h-full w-full object-cover transition-opacity duration-300 ${
+              className={`h-full w-full rounded-[4px] object-cover transition-opacity duration-300 ${
                 loaded ? "opacity-100" : "opacity-0"
               }`}
             />
           </>
         ) : (
-          <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.06] via-white/[0.02] to-white/[0.05]" />
+          <div className="absolute inset-0 animate-pulse rounded-[4px] bg-gradient-to-br from-white/[0.06] via-white/[0.02] to-white/[0.05]" />
         )}
       </div>
-      <span className="text-[10px] tabular-nums text-white/45">#{id}</span>
+      <span className="text-[9px] tabular-nums text-white/40">#{id}</span>
     </div>
   );
 }
@@ -73,7 +84,6 @@ export default function WalletDetailPanel({
 }: WalletDetailPanelProps) {
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const wallet = selection?.wallet ?? "";
@@ -84,29 +94,25 @@ export default function WalletDetailPanel({
   useEffect(() => {
     if (!open || !wallet) {
       setWalletData(null);
-      setError(null);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
-    setError(null);
 
-    fetch(`/api/wallet/${wallet}`)
+    fetch(`/api/wallet?address=${encodeURIComponent(wallet)}`)
       .then(async (res) => {
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `Request failed (${res.status})`);
-        }
-        return res.json() as Promise<WalletData>;
+        if (!res.ok) return null;
+        const data = (await res.json()) as WalletData;
+        if (!Array.isArray(data.tokenIds)) return null;
+        return data;
       })
       .then((data) => {
         if (cancelled) return;
         setWalletData(data);
       })
-      .catch((err) => {
+      .catch(() => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load wallet");
         setWalletData(null);
       })
       .finally(() => {
@@ -136,73 +142,65 @@ export default function WalletDetailPanel({
     }
   }, [wallet]);
 
+  const burnedCount = walletData?.burnedCount ?? 0;
+
   return (
-    <aside
-      aria-hidden={!open}
-      className={`pointer-events-auto fixed right-0 top-0 z-40 flex h-full w-[320px] flex-col border-l border-white/10 bg-black/55 shadow-2xl backdrop-blur-xl transition-transform duration-300 ease-out ${
-        open ? "translate-x-0" : "translate-x-full"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3 border-b border-white/8 px-4 py-4">
+    <aside aria-hidden={!open} className={panelShell(open)}>
+      <div className={panelHeader}>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate font-mono text-sm text-white/85">
+          <p className={panelTitle}>
+            {rank !== undefined ? `#${rank} · ` : ""}
+            {normieCount.toLocaleString()} Normies
+          </p>
+          {!loading && burnedCount >= 1 ? (
+            <p className={panelAccentLine}>
+              <span style={{ color: PANEL_ACCENT }}>
+                {burnedCount.toLocaleString()} Burned
+              </span>
+            </p>
+          ) : null}
+          <div className="mt-2 flex items-center gap-1.5">
+            <p className="truncate font-mono text-[10px] text-white/35">
               {walletDisplay}
             </p>
             <button
               type="button"
               onClick={handleCopy}
               aria-label="Copy wallet address"
-              className="shrink-0 rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-white/50 transition-colors hover:border-white/20 hover:text-white/75"
+              className={panelMetaButton}
             >
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
-          <p className="mt-2 text-sm font-medium text-amber-50/90">
-            {rank !== undefined ? `#${rank} · ` : ""}
-            {normieCount.toLocaleString()} Normies
-          </p>
-          <p className="mt-1 text-xs text-white/45">
-            Burned:{" "}
-            {loading ? (
-              <span className="inline-block h-3 w-8 animate-pulse rounded bg-white/10" />
-            ) : (
-              (walletData?.burnedCount ?? 0).toLocaleString()
-            )}
-          </p>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close panel"
-          className="shrink-0 rounded-md border border-white/10 px-2 py-1 text-sm text-white/50 transition-colors hover:border-white/20 hover:text-white/80"
+          className={panelCloseButton}
         >
           ×
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className={panelBody}>
         {loading && !walletData ? (
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-1.5">
             {Array.from({ length: 9 }).map((_, i) => (
               <div
                 key={i}
-                className="aspect-square animate-pulse rounded-md bg-white/[0.04]"
+                className="aspect-square animate-pulse rounded-[4px] bg-white/[0.04]"
               />
             ))}
           </div>
         ) : null}
 
-        {error ? (
-          <p className="text-xs text-red-300/70">{error}</p>
-        ) : null}
-
         {!loading && walletData && sortedTokenIds.length === 0 ? (
-          <p className="text-xs text-white/35">No Normies in this wallet.</p>
+          <p className={panelEmpty}>No Normies in this wallet.</p>
         ) : null}
 
         {sortedTokenIds.length > 0 ? (
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-1.5">
             {sortedTokenIds.map((id) => (
               <NormieThumbnail key={id} id={id} />
             ))}
