@@ -54,8 +54,36 @@ export type OuterHolderStar = SkyStarBase & {
 export type CameraTarget =
   | { type: "overview" }
   | { type: "group"; group: HolderGroupStar }
-  | { type: "core" }
-  | { type: "search"; position: [number, number, number] };
+  | { type: "core" };
+
+export type WalletSelection = {
+  wallet: string;
+  walletDisplay: string;
+  normieCount: number;
+  rank?: number;
+};
+
+export type LocatorTarget =
+  | {
+      kind: "holder";
+      starKind: "top75" | "outer";
+      wallet: string;
+      walletDisplay: string;
+      normieCount: number;
+      rank?: number;
+      position: [number, number, number];
+      baseCoreSize?: number;
+      baseGlowSize?: number;
+      baseGlowOpacity?: number;
+      baseScreenPixels?: number;
+      color: string;
+    }
+  | {
+      kind: "pyre";
+      tokenId: string;
+      label: string;
+      position: [number, number, number];
+    };
 
 export type UniverseSceneState = {
   hoveredGroup: HolderGroupStar | null;

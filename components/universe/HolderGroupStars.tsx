@@ -22,8 +22,6 @@ interface HolderGroupStarsProps {
   groups: HolderGroupStar[];
   hoveredId: string | null;
   selectedId: string | null;
-  pulseWallet?: string | null;
-  pulseKey?: number;
   reducedMotion?: boolean;
   debugLayers?: HolderGroupStarsDebugLayers;
   hoverRef?: React.RefObject<HolderGroupStar | null>;
@@ -175,8 +173,6 @@ const vertexShader = /* glsl */ `
   uniform float uShowGlow;
   uniform int uHoveredIndex;
   uniform int uSelectedIndex;
-  uniform int uPulseIndex;
-  uniform float uPulseStrength;
   varying float vBrightness;
   varying float vGlow;
   varying float vSparkle;
@@ -189,9 +185,8 @@ const vertexShader = /* glsl */ `
     vGlow = aGlowOpacity;
     float hovered = float(gl_VertexID == uHoveredIndex);
     float selected = float(gl_VertexID == uSelectedIndex);
-    float pulse = float(gl_VertexID == uPulseIndex) * uPulseStrength;
     vIsSelected = selected;
-    vBrightness = aBrightness * (1.0 + hovered * 0.14 + selected * 0.05 + pulse * 0.55);
+    vBrightness = aBrightness * (1.0 + hovered * 0.14 + selected * 0.05);
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     float size = (aCoreSize + aGlowSize * vGlow * uShowGlow) * (1.0 + hovered * 0.06 + selected * 0.03);
     float pixelSize = size * (235.0 / -mvPosition.z);
@@ -251,8 +246,6 @@ export default function HolderGroupStars({
   groups,
   hoveredId,
   selectedId,
-  pulseWallet = null,
-  pulseKey = 0,
   debugLayers,
   hoverRef,
   onHover,
@@ -266,7 +259,6 @@ export default function HolderGroupStars({
   const { camera, pointer, size, gl } = useThree();
   const pointsRef = useRef<THREE.Points>(null);
   const hitRef = useRef<THREE.InstancedMesh>(null);
-  const pulseStart = useRef(0);
   const lastHoverId = useRef<string | null>(null);
   const visualsRef = useRef<HolderStarVisual[]>([]);
   const hoveredIndex = groups.findIndex((g) => g.id === hoveredId);
@@ -333,8 +325,6 @@ export default function HolderGroupStars({
         uShowGlow: { value: showGlow ? 1 : 0 },
         uHoveredIndex: { value: -1 },
         uSelectedIndex: { value: -1 },
-        uPulseIndex: { value: -1 },
-        uPulseStrength: { value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -413,16 +403,6 @@ export default function HolderGroupStars({
     onEmptyClick,
   ]);
 
-  useLayoutEffect(() => {
-    if (!pulseWallet) return;
-    const idx = groups.findIndex(
-      (g) => g.wallet?.toLowerCase() === pulseWallet.toLowerCase(),
-    );
-    if (idx < 0) return;
-    material.uniforms.uPulseIndex.value = idx;
-    pulseStart.current = performance.now() / 1000;
-  }, [pulseWallet, pulseKey, groups, material.uniforms]);
-
   useFrame(() => {
     if (!pointsRef.current) return;
     material.uniforms.uHoveredIndex.value = hoveredIndex;
@@ -455,16 +435,6 @@ export default function HolderGroupStars({
         onHover(null);
       }
     }
-
-    if (material.uniforms.uPulseIndex.value < 0) return;
-    const elapsed = performance.now() / 1000 - pulseStart.current;
-    if (elapsed > 1.2) {
-      material.uniforms.uPulseStrength.value = 0;
-      material.uniforms.uPulseIndex.value = -1;
-      return;
-    }
-    material.uniforms.uPulseStrength.value =
-      Math.sin(Math.min(elapsed / 0.55, 1) * Math.PI);
   });
 
   return (

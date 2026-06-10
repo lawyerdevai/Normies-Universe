@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { HolderGroupStar } from "@/types/universe";
+import type { WalletSelection } from "@/types/universe";
 
 type WalletData = {
   address: string;
@@ -10,7 +10,7 @@ type WalletData = {
 };
 
 interface WalletDetailPanelProps {
-  group: HolderGroupStar | null;
+  selection: WalletSelection | null;
   open: boolean;
   onClose: () => void;
 }
@@ -67,7 +67,7 @@ function NormieThumbnail({ id }: { id: string }) {
 }
 
 export default function WalletDetailPanel({
-  group,
+  selection,
   open,
   onClose,
 }: WalletDetailPanelProps) {
@@ -76,10 +76,10 @@ export default function WalletDetailPanel({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const wallet = group?.wallet ?? group?.id.replace(/^holder-/, "") ?? "";
-  const walletDisplay = group?.walletDisplay ?? group?.label ?? "";
-  const rank = group?.collectionRank ?? group?.rankStart ?? 0;
-  const normieCount = group?.totalNormies ?? 0;
+  const wallet = selection?.wallet ?? "";
+  const walletDisplay = selection?.walletDisplay ?? "";
+  const rank = selection?.rank;
+  const normieCount = selection?.normieCount ?? 0;
 
   useEffect(() => {
     if (!open || !wallet) {
@@ -159,7 +159,8 @@ export default function WalletDetailPanel({
             </button>
           </div>
           <p className="mt-2 text-sm font-medium text-amber-50/90">
-            #{rank} · {normieCount.toLocaleString()} Normies
+            {rank !== undefined ? `#${rank} · ` : ""}
+            {normieCount.toLocaleString()} Normies
           </p>
           <p className="mt-1 text-xs text-white/45">
             Burned:{" "}

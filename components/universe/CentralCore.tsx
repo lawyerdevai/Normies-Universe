@@ -68,6 +68,7 @@ interface CentralCoreProps {
   reducedMotion?: boolean;
   debugEnabled?: boolean;
   starHoverRef?: React.RefObject<HolderGroupStar | null>;
+  pyreLocatorKey?: number;
   onHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
 }
 
@@ -76,6 +77,7 @@ export default function CentralCore({
   reducedMotion = false,
   debugEnabled = true,
   starHoverRef,
+  pyreLocatorKey = 0,
   onHover,
 }: CentralCoreProps) {
   const { camera, pointer, size, gl } = useThree();
@@ -85,6 +87,12 @@ export default function CentralCore({
     startTime: -999,
     nextAt: 6 + Math.random() * 5,
   });
+  const locatorFlareRef = useRef({ startMs: 0, active: false });
+
+  useLayoutEffect(() => {
+    if (pyreLocatorKey === 0) return;
+    locatorFlareRef.current = { startMs: performance.now(), active: true };
+  }, [pyreLocatorKey]);
   const particles = useMemo(() => generatePyreParticles(), []);
 
   const { geometry, material, animMeta } = useMemo(() => {
@@ -220,9 +228,22 @@ export default function CentralCore({
       thunder = thunderEnvelope(t - thunderState.startTime);
     }
 
+    let locatorFlare = 0;
+    const locatorState = locatorFlareRef.current;
+    if (locatorState.active) {
+      const age = (performance.now() - locatorState.startMs) / 1000;
+      if (age > 3) {
+        locatorState.active = false;
+      } else {
+        locatorFlare =
+          Math.sin(Math.min(age / 0.35, 1) * Math.PI * 0.5) *
+          (age < 2.6 ? 1 : 1 - (age - 2.6) / 0.4);
+      }
+    }
+
     material.uniforms.uFieldPulse.value = reducedMotion
       ? 1
-      : fieldPulse * (1 + thunder * 0.1);
+      : fieldPulse * (1 + thunder * 0.1 + locatorFlare * 0.35);
 
     if (reducedMotion) return;
 
@@ -242,9 +263,15 @@ export default function CentralCore({
 
       brightnessAttr.setX(
         i,
-        base * flicker * (1 + glint * 0.35) * (1 + thunder * 0.32),
+        base *
+          flicker *
+          (1 + glint * 0.35) *
+          (1 + thunder * 0.32 + locatorFlare * 0.55),
       );
-      flareAttr.setX(i, Math.max(glint, thunder * 0.38));
+      flareAttr.setX(
+        i,
+        Math.max(glint, thunder * 0.38, locatorFlare * 0.72),
+      );
     }
 
     brightnessAttr.needsUpdate = true;

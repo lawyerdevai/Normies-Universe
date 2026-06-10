@@ -3,7 +3,7 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import BackgroundStars from "@/components/universe/BackgroundStars";
@@ -14,9 +14,11 @@ import CosmicDust from "@/components/universe/CosmicDust";
 import GalaxyAtmosphere from "@/components/universe/GalaxyAtmosphere";
 import HolderGroupStars from "@/components/universe/HolderGroupStars";
 import OuterHolderStars from "@/components/universe/OuterHolderStars";
+import SearchLocator from "@/components/universe/SearchLocator";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
 import SearchBar from "@/components/ui/SearchBar";
+import SearchResultLabel from "@/components/ui/SearchResultLabel";
 import PyreDetailPanel from "@/components/ui/PyreDetailPanel";
 import WalletDetailPanel from "@/components/ui/WalletDetailPanel";
 import {
@@ -36,10 +38,21 @@ import {
   getHolderGroups,
   verifyAssignment,
 } from "@/lib/universe";
+import {
+  locatorFromHolderMatch,
+  locatorLabelText,
+  parseSearchQuery,
+} from "@/lib/universe/resolveSearch";
 import type { RankedHolder } from "@/lib/opensea/holders";
-import type { CameraTarget, HolderGroupStar, OuterHolderStar } from "@/types/universe";
+import type {
+  HolderGroupStar,
+  LocatorTarget,
+  OuterHolderStar,
+  WalletSelection,
+} from "@/types/universe";
 
 const CLICKABLE_STAR_COUNT = countClickableStars(getHolderGroups());
+const PYRE_POSITION: [number, number, number] = [0, 0, 0];
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -64,20 +77,39 @@ function useIsMobile() {
   return mobile;
 }
 
+function holderToWalletSelection(group: HolderGroupStar): WalletSelection {
+  return {
+    wallet: group.wallet ?? group.id,
+    walletDisplay: group.walletDisplay ?? group.label,
+    normieCount: group.totalNormies,
+    rank: group.collectionRank ?? group.rankStart,
+  };
+}
+
+function outerToWalletSelection(star: OuterHolderStar): WalletSelection {
+  return {
+    wallet: star.wallet,
+    walletDisplay: star.walletDisplay,
+    normieCount: star.normieCount,
+    rank: star.collectionRank,
+  };
+}
+
 function SceneContent({
   holderGroups,
   outerStars,
   hoveredId,
   hoveredCore,
-  cameraTarget,
-  pulseWallet,
-  pulseKey,
+  locatorTarget,
+  locatorKey,
+  pyreLocatorKey,
   reducedMotion,
   isMobile,
   controlsRef,
   resetKey,
   selectedId,
   starHoverRef,
+  onLocatorScreenPos,
   onHover,
   onSelect,
   onEmptyClick,
@@ -89,15 +121,16 @@ function SceneContent({
   outerStars: OuterHolderStar[];
   hoveredId: string | null;
   hoveredCore: boolean;
-  cameraTarget: CameraTarget;
-  pulseWallet: string | null;
-  pulseKey: number;
+  locatorTarget: LocatorTarget | null;
+  locatorKey: number;
+  pyreLocatorKey: number;
   reducedMotion: boolean;
   isMobile: boolean;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   resetKey: number;
   selectedId: string | null;
   starHoverRef: React.RefObject<HolderGroupStar | null>;
+  onLocatorScreenPos: (pos: { x: number; y: number } | null) => void;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
@@ -109,7 +142,6 @@ function SceneContent({
   onResetCamera: () => void;
 }) {
   const layerDebug = DEFAULT_LAYER_DEBUG;
-  const controlsEnabled = cameraTarget.type === "overview";
 
   return (
     <>
@@ -132,18 +164,12 @@ function SceneContent({
           particleHalo: layerDebug.galaxyParticleHalo,
         }}
       />
-      <OuterHolderStars
-        stars={outerStars}
-        pulseWallet={pulseWallet}
-        pulseKey={pulseKey}
-      />
+      <OuterHolderStars stars={outerStars} />
       {layerDebug.cosmicDust ? <CosmicDust /> : null}
       <HolderGroupStars
         groups={holderGroups}
         hoveredId={hoveredId}
         selectedId={selectedId}
-        pulseWallet={pulseWallet}
-        pulseKey={pulseKey}
         reducedMotion={reducedMotion}
         hoverRef={starHoverRef}
         debugLayers={{
@@ -161,11 +187,17 @@ function SceneContent({
         reducedMotion={reducedMotion}
         debugEnabled={layerDebug.centralCore}
         starHoverRef={starHoverRef}
+        pyreLocatorKey={pyreLocatorKey}
         onHover={(hovered, screenPos) => onCoreHover(hovered, screenPos)}
       />
 
+      <SearchLocator
+        target={locatorTarget}
+        locatorKey={locatorKey}
+        onScreenPos={onLocatorScreenPos}
+      />
+
       <CameraRig
-        cameraTarget={cameraTarget}
         reducedMotion={reducedMotion}
         controlsRef={controlsRef}
         resetKey={resetKey}
@@ -184,7 +216,6 @@ function SceneContent({
         minPolarAngle={MIN_POLAR_ANGLE}
         maxPolarAngle={MAX_POLAR_ANGLE}
         enablePan={false}
-        enabled={controlsEnabled}
       />
 
       {!isMobile && layerDebug.bloom && layerDebug.vignette ? (
@@ -267,7 +298,7 @@ export default function UniverseScene() {
   }, []);
 
   const [hoveredGroup, setHoveredGroup] = useState<HolderGroupStar | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<HolderGroupStar | null>(
+  const [walletSelection, setWalletSelection] = useState<WalletSelection | null>(
     null,
   );
   const [pyreOpen, setPyreOpen] = useState(false);
@@ -276,14 +307,22 @@ export default function UniverseScene() {
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
     null,
   );
-  const [searchTarget, setSearchTarget] = useState<CameraTarget | null>(null);
-  const [pulseWallet, setPulseWallet] = useState<string | null>(null);
-  const [pulseKey, setPulseKey] = useState(0);
+  const [searchNotFound, setSearchNotFound] = useState(false);
+  const [locatorTarget, setLocatorTarget] = useState<LocatorTarget | null>(null);
+  const [locatorKey, setLocatorKey] = useState(0);
+  const [pyreLocatorKey, setPyreLocatorKey] = useState(0);
+  const [searchLabel, setSearchLabel] = useState<string | null>(null);
+  const [labelScreenPos, setLabelScreenPos] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
-  const cameraTarget: CameraTarget = useMemo(() => {
-    if (searchTarget) return searchTarget;
-    return { type: "overview" };
-  }, [searchTarget]);
+  const handleLocatorScreenPos = useCallback(
+    (pos: { x: number; y: number } | null) => {
+      if (searchLabel) setLabelScreenPos(pos);
+    },
+    [searchLabel],
+  );
 
   const handleHover = useCallback(
     (group: HolderGroupStar | null, screenPos?: { x: number; y: number }) => {
@@ -298,51 +337,128 @@ export default function UniverseScene() {
     (hovered: boolean, screenPos?: { x: number; y: number }) => {
       if (starHoverRef.current) return;
       setHoveredCore(hovered);
-      setTooltipPos(
-        hovered ? (screenPos ?? null) : null,
-      );
+      setTooltipPos(hovered ? (screenPos ?? null) : null);
     },
     [],
   );
 
   const handleSelect = useCallback((group: HolderGroupStar) => {
-    setSelectedGroup(group);
+    setWalletSelection(holderToWalletSelection(group));
     setPyreOpen(false);
+    setSearchLabel(null);
+    setLocatorTarget(null);
   }, []);
 
   const handleCoreSelect = useCallback(() => {
     setPyreOpen(true);
-    setSelectedGroup(null);
+    setWalletSelection(null);
+    setSearchLabel(null);
+    setLocatorTarget(null);
   }, []);
 
   const handleClosePanel = useCallback(() => {
-    setSelectedGroup(null);
+    setWalletSelection(null);
     setPyreOpen(false);
   }, []);
 
+  const handleEmptyClick = useCallback(() => {
+    handleClosePanel();
+    setSearchLabel(null);
+    setLocatorTarget(null);
+    setLabelScreenPos(null);
+  }, [handleClosePanel]);
+
   const handleResetCamera = useCallback(() => {
-    setSearchTarget(null);
     setHoveredGroup(null);
     setHoveredCore(false);
     setTooltipPos(null);
     setResetKey((k) => k + 1);
   }, []);
 
-  const handleSearch = useCallback(
-    (query: string) => {
-      const match = findHolderByWallet(query, holderGroups, outerStars);
-      if (!match) return;
+  const activateHolderLocator = useCallback(
+    (match: NonNullable<ReturnType<typeof findHolderByWallet>>) => {
+      const target = locatorFromHolderMatch(match, holderGroups);
+      if (!target) return;
 
-      const wallet =
-        match.kind === "top75"
-          ? (match.star.wallet ?? match.star.id)
-          : match.star.wallet;
+      setLocatorTarget(target);
+      setLocatorKey((k) => k + 1);
+      setSearchLabel(locatorLabelText(target));
 
-      setSearchTarget({ type: "search", position: match.star.position });
-      setPulseWallet(wallet);
-      setPulseKey((k) => k + 1);
+      if (match.kind === "top75") {
+        setWalletSelection(holderToWalletSelection(match.star));
+      } else {
+        setWalletSelection(outerToWalletSelection(match.star));
+      }
+      setPyreOpen(false);
     },
-    [holderGroups, outerStars],
+    [holderGroups],
+  );
+
+  const handleSearch = useCallback(
+    async (query: string) => {
+      setSearchNotFound(false);
+      setSearchLabel(null);
+      setLocatorTarget(null);
+      setLabelScreenPos(null);
+
+      const parsed = parseSearchQuery(query);
+      if (parsed.type === "invalid") {
+        setSearchNotFound(true);
+        return;
+      }
+
+      if (parsed.type === "wallet") {
+        const match = findHolderByWallet(
+          parsed.address,
+          holderGroups,
+          outerStars,
+        );
+        if (!match) {
+          setSearchNotFound(true);
+          return;
+        }
+        activateHolderLocator(match);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/normie/${parsed.id}`);
+        if (!res.ok) {
+          setSearchNotFound(true);
+          return;
+        }
+
+        const data = (await res.json()) as
+          | { status: "owned"; owner: string }
+          | { status: "burned"; tokenId: string };
+
+        if (data.status === "burned") {
+          const pyreTarget: LocatorTarget = {
+            kind: "pyre",
+            tokenId: data.tokenId,
+            label: `#${data.tokenId} was burned`,
+            position: PYRE_POSITION,
+          };
+          setLocatorTarget(pyreTarget);
+          setLocatorKey((k) => k + 1);
+          setPyreLocatorKey((k) => k + 1);
+          setSearchLabel(pyreTarget.label);
+          setWalletSelection(null);
+          setPyreOpen(true);
+          return;
+        }
+
+        const match = findHolderByWallet(data.owner, holderGroups, outerStars);
+        if (!match) {
+          setSearchNotFound(true);
+          return;
+        }
+        activateHolderLocator(match);
+      } catch {
+        setSearchNotFound(true);
+      }
+    },
+    [holderGroups, outerStars, activateHolderLocator],
   );
 
   return (
@@ -368,27 +484,33 @@ export default function UniverseScene() {
           holderGroups={holderGroups}
           outerStars={outerStars}
           hoveredId={hoveredGroup?.id ?? null}
-          selectedId={selectedGroup?.id ?? null}
-          pulseWallet={pulseWallet}
-          pulseKey={pulseKey}
+          selectedId={
+            walletSelection
+              ? holderGroups.find((g) => g.wallet === walletSelection.wallet)
+                  ?.id ?? null
+              : null
+          }
+          locatorTarget={locatorTarget}
+          locatorKey={locatorKey}
+          pyreLocatorKey={pyreLocatorKey}
           hoveredCore={hoveredCore}
-          cameraTarget={cameraTarget}
           reducedMotion={reducedMotion}
           isMobile={isMobile}
           controlsRef={controlsRef}
           resetKey={resetKey}
           starHoverRef={starHoverRef}
+          onLocatorScreenPos={handleLocatorScreenPos}
           onHover={handleHover}
           onSelect={handleSelect}
           onPyreClick={handleCoreSelect}
-          onEmptyClick={handleClosePanel}
+          onEmptyClick={handleEmptyClick}
           onCoreHover={handleCoreHover}
           onResetCamera={handleResetCamera}
         />
       </Canvas>
 
       <div className="pointer-events-none fixed inset-0 z-30">
-        <header className="absolute left-6 top-6">
+        <header className="absolute left-6 top-6 max-w-[calc(50%-12rem)]">
           <h1 className="text-lg font-medium tracking-tight text-white/70 sm:text-xl">
             Normie Universe
           </h1>
@@ -396,8 +518,10 @@ export default function UniverseScene() {
             A living map of the Normies holder galaxy
           </p>
         </header>
-        <SearchBar onSearch={handleSearch} />
+        <SearchBar onSearch={handleSearch} notFound={searchNotFound} />
       </div>
+
+      <SearchResultLabel text={searchLabel} position={labelScreenPos} />
 
       <StarTooltip
         group={hoveredGroup}
@@ -406,8 +530,8 @@ export default function UniverseScene() {
       />
 
       <WalletDetailPanel
-        group={selectedGroup}
-        open={selectedGroup !== null}
+        selection={walletSelection}
+        open={walletSelection !== null}
         onClose={handleClosePanel}
       />
       <PyreDetailPanel open={pyreOpen} onClose={handleClosePanel} />

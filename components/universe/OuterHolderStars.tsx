@@ -83,31 +83,16 @@ function updateSkyInstances(
 
 interface OuterHolderStarsProps {
   stars: OuterHolderStar[];
-  pulseWallet: string | null;
-  pulseKey: number;
 }
 
-export default function OuterHolderStars({
-  stars,
-  pulseWallet,
-  pulseKey,
-}: OuterHolderStarsProps) {
+export default function OuterHolderStars({ stars }: OuterHolderStarsProps) {
   const decorative = useMemo(() => buildDecorativeSkyStars(), []);
   const decoRef = useRef<THREE.InstancedMesh>(null);
   const holderRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const material = useSkyStarMaterial();
-  const pulseStart = useRef(0);
-  const pulseIndex = useRef(-1);
-  const walletIndex = useRef(new Map<string, number>());
 
   const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
-
-  useLayoutEffect(() => {
-    walletIndex.current = new Map(
-      stars.map((s, i) => [s.wallet.toLowerCase(), i]),
-    );
-  }, [stars]);
 
   useLayoutEffect(() => {
     const mesh = decoRef.current;
@@ -136,29 +121,11 @@ export default function OuterHolderStars({
     mesh.raycast = () => {};
   }, [stars]);
 
-  useLayoutEffect(() => {
-    if (!pulseWallet) return;
-    const idx = walletIndex.current.get(pulseWallet.toLowerCase());
-    if (idx === undefined) return;
-    pulseIndex.current = idx;
-    pulseStart.current = performance.now() / 1000;
-  }, [pulseWallet, pulseKey]);
-
   useFrame(({ clock, camera, size }) => {
     const persp = camera as THREE.PerspectiveCamera;
     const pixelWorld = (2 * Math.tan((persp.fov * Math.PI) / 360)) / size.height;
     const camQuat = camera.quaternion;
     const time = clock.elapsedTime;
-
-    let pulseStrength = 0;
-    if (pulseIndex.current >= 0) {
-      const elapsed = performance.now() / 1000 - pulseStart.current;
-      if (elapsed > 1.2) {
-        pulseIndex.current = -1;
-      } else {
-        pulseStrength = Math.sin(Math.min(elapsed / 0.55, 1) * Math.PI);
-      }
-    }
 
     if (decoRef.current) {
       updateSkyInstances(
@@ -183,8 +150,8 @@ export default function OuterHolderStars({
         camQuat,
         dummy,
         time,
-        pulseIndex.current,
-        pulseStrength,
+        -1,
+        0,
       );
     }
   });
