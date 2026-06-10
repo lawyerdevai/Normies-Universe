@@ -711,9 +711,6 @@ export default function UniverseScene() {
           <h1 className="text-lg font-medium tracking-tight text-white/70 sm:text-xl">
             Normie Universe
           </h1>
-          <p className="mt-0.5 text-[11px] text-white/25 sm:text-xs">
-            A living map of the Normies holder galaxy
-          </p>
         </header>
         <SearchBar onSearch={handleSearch} notFound={searchNotFound} />
       </div>
