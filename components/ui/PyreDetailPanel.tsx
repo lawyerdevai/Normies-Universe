@@ -9,8 +9,14 @@ type PyreData = {
   recentBurns: { tokenId: string; timestamp: number }[];
 };
 
+type SearchedBurn = {
+  tokenId: string;
+  burnedAt: number;
+};
+
 interface PyreDetailPanelProps {
   open: boolean;
+  searchedBurn?: SearchedBurn | null;
   onClose: () => void;
 }
 
@@ -88,7 +94,40 @@ function BurnThumbnail({ tokenId }: { tokenId: string }) {
   );
 }
 
-export default function PyreDetailPanel({ open, onClose }: PyreDetailPanelProps) {
+function SearchedBurnHeader({ tokenId, burnedAt }: SearchedBurn) {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <div className="border-b border-white/8 px-4 py-4">
+      <div className="relative mx-auto h-24 w-24 overflow-hidden rounded border border-white/10 bg-white/[0.03]">
+        {!loaded ? (
+          <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.06] via-white/[0.02] to-white/[0.05]" />
+        ) : null}
+        <img
+          src={`https://api.normies.art/history/burned/${tokenId}/image.png`}
+          alt={`Burned Normie #${tokenId}`}
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          className={`h-full w-full object-cover transition-opacity duration-300 ${
+            loaded ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </div>
+      <p className="mt-3 text-center text-sm tabular-nums text-white/85">
+        #{tokenId}
+      </p>
+      <p className="mt-1 text-center text-xs text-white/55">
+        Burned · {formatDate(burnedAt)}
+      </p>
+    </div>
+  );
+}
+
+export default function PyreDetailPanel({
+  open,
+  searchedBurn = null,
+  onClose,
+}: PyreDetailPanelProps) {
   const [data, setData] = useState<PyreData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,6 +181,13 @@ export default function PyreDetailPanel({ open, onClose }: PyreDetailPanelProps)
         open ? "translate-x-0" : "translate-x-full"
       }`}
     >
+      {searchedBurn ? (
+        <SearchedBurnHeader
+          tokenId={searchedBurn.tokenId}
+          burnedAt={searchedBurn.burnedAt}
+        />
+      ) : null}
+
       <div className="flex items-start justify-between gap-3 border-b border-white/8 px-4 py-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-medium text-white/85">The Pyre</h2>

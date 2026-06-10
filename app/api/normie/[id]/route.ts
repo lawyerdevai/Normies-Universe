@@ -8,6 +8,14 @@ type OwnerResponse = {
   owner?: string;
 };
 
+type BurnedResponse = {
+  tokenId?: string | number;
+  timestamp?: number | string;
+  commitment?: {
+    timestamp?: number | string;
+  };
+};
+
 function parseNormieId(raw: string): number | null {
   const id = Number.parseInt(raw, 10);
   if (!Number.isInteger(id) || id < 0 || id > 9999) return null;
@@ -49,9 +57,15 @@ export async function GET(
   });
 
   if (burnedRes.ok) {
+    const burned = (await burnedRes.json()) as BurnedResponse;
+    const rawTimestamp =
+      burned.commitment?.timestamp ?? burned.timestamp;
+    const burnedAt = Number(rawTimestamp);
+
     return NextResponse.json({
       status: "burned" as const,
-      tokenId: String(id),
+      tokenId: String(burned.tokenId ?? id),
+      burnedAt: Number.isFinite(burnedAt) ? burnedAt : 0,
     });
   }
 

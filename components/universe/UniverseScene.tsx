@@ -308,6 +308,10 @@ export default function UniverseScene() {
     null,
   );
   const [pyreOpen, setPyreOpen] = useState(false);
+  const [pyreSearchedBurn, setPyreSearchedBurn] = useState<{
+    tokenId: string;
+    burnedAt: number;
+  } | null>(null);
   const [hoveredCore, setHoveredCore] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
@@ -345,10 +349,12 @@ export default function UniverseScene() {
   const handleSelect = useCallback((group: HolderGroupStar) => {
     setWalletSelection(holderToWalletSelection(group));
     setPyreOpen(false);
+    setPyreSearchedBurn(null);
     deactivateSearchHighlights();
   }, [deactivateSearchHighlights]);
 
   const handleCoreSelect = useCallback(() => {
+    setPyreSearchedBurn(null);
     setPyreOpen(true);
     setWalletSelection(null);
     deactivateSearchHighlights();
@@ -357,6 +363,7 @@ export default function UniverseScene() {
   const handleClosePanel = useCallback(() => {
     setWalletSelection(null);
     setPyreOpen(false);
+    setPyreSearchedBurn(null);
     deactivateSearchHighlights();
   }, [deactivateSearchHighlights]);
 
@@ -391,6 +398,7 @@ export default function UniverseScene() {
         setWalletSelection(outerToWalletSelection(match.star));
       }
       setPyreOpen(false);
+      setPyreSearchedBurn(null);
     },
     [],
   );
@@ -428,12 +436,16 @@ export default function UniverseScene() {
 
         const data = (await res.json()) as
           | { status: "owned"; owner: string }
-          | { status: "burned"; tokenId: string };
+          | { status: "burned"; tokenId: string; burnedAt: number };
 
         if (data.status === "burned") {
           deactivateSearchHighlights();
           setDimKey((k) => k + 1);
           setWalletSelection(null);
+          setPyreSearchedBurn({
+            tokenId: data.tokenId,
+            burnedAt: data.burnedAt,
+          });
           setPyreOpen(true);
           return;
         }
@@ -529,7 +541,11 @@ export default function UniverseScene() {
         open={walletSelection !== null}
         onClose={handleClosePanel}
       />
-      <PyreDetailPanel open={pyreOpen} onClose={handleClosePanel} />
+      <PyreDetailPanel
+        open={pyreOpen}
+        searchedBurn={pyreSearchedBurn}
+        onClose={handleClosePanel}
+      />
     </div>
   );
 }
