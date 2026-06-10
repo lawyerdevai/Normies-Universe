@@ -4,14 +4,13 @@ import {
   isValidWalletAddress,
 } from "@/lib/wallet/fetchWalletData";
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ address: string }> },
-) {
-  const { address: raw } = await params;
-  const address = raw.toLowerCase();
+export async function GET(request: Request) {
+  const address = new URL(request.url).searchParams
+    .get("address")
+    ?.trim()
+    .toLowerCase();
 
-  if (!isValidWalletAddress(address)) {
+  if (!address || !isValidWalletAddress(address)) {
     return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
   }
 
