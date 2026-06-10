@@ -1,5 +1,6 @@
 export const BURNER_TIER1_COLOR = "#FF6B00";
-export const BURNER_TIER2_COLOR = "#CC3300";
+/** ~20% less saturation/brightness than prior tier 2 — dark cooling ember. */
+export const BURNER_TIER2_COLOR = "#8F2E12";
 
 export type BurnerWalletEntry = {
   address: string;

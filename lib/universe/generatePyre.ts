@@ -55,6 +55,7 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   return [r + m, g + m, b + m];
 }
 
+/** Hue band centered on tier-1 burner orange (#FF6B00 ≈ 27°). */
 function emberColor(rng: () => number, distT: number): [number, number, number] {
   const roll = rng();
 
@@ -65,15 +66,18 @@ function emberColor(rng: () => number, distT: number): [number, number, number] 
     return hslToRgb(38 + rng() * 6, 0.42 + rng() * 0.22, 0.8 + rng() * 0.12);
   }
   if (roll < 0.3) {
+    return hslToRgb(22 + rng() * 10, 0.88 + rng() * 0.1, lerp(0.4, 0.58, 1 - distT * 0.7));
+  }
+  if (roll < 0.5) {
     return hslToRgb(8 + rng() * 10, 0.8 + rng() * 0.14, lerp(0.36, 0.52, 1 - distT));
   }
-  if (roll < 0.54) {
+  if (roll < 0.7) {
     return hslToRgb(18 + rng() * 12, 0.76 + rng() * 0.16, lerp(0.4, 0.58, 1 - distT * 0.9));
   }
-  if (roll < 0.78) {
-    return hslToRgb(28 + rng() * 14, 0.68 + rng() * 0.2, lerp(0.44, 0.65, 1 - distT * 0.8));
+  if (roll < 0.86) {
+    return hslToRgb(26 + rng() * 8, 0.82 + rng() * 0.14, lerp(0.44, 0.62, 1 - distT * 0.8));
   }
-  return hslToRgb(42 + rng() * 10, 0.52 + rng() * 0.24, lerp(0.52, 0.74, 1 - distT * 0.7));
+  return hslToRgb(30 + rng() * 10, 0.68 + rng() * 0.2, lerp(0.48, 0.68, 1 - distT * 0.7));
 }
 
 function pyrePosition(rng: () => number): {
