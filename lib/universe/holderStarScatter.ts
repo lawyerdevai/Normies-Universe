@@ -2,7 +2,7 @@ import { HOLDER_STAR_BANDS } from "./holderStarBands";
 import { clamp01, createRng, gaussian } from "./seededRandom";
 
 /** Change this to reroll the entire within-band star arrangement. */
-export const PLACEMENT_SEED = 5;
+export const PLACEMENT_SEED = 10;
 
 export type BandScatter = {
   angle: number;
