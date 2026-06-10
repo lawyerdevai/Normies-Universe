@@ -1,6 +1,7 @@
 import { enforceHolderStarPlacement } from "./enforceHolderStarPlacement";
 import type { StarPlacement } from "./generateStarPositions";
 import type { HolderStarVisual } from "./holderStarVisual";
+import { clearPyreScreenOverlap } from "./pyreScreenExclusion";
 import { placeTopHolderStar, rotatePlacementY } from "./placeTopHolderStar";
 
 function hashSeed(seed: string) {
@@ -70,7 +71,7 @@ export function resolveHolderStarSpacing(
     }
 
     if (!hasCollision(placement.position, radius, placed)) {
-      return enforceHolderStarPlacement(rank, placement);
+      return finalizeHolderPlacement(rank, seed, placement);
     }
   }
 
@@ -78,5 +79,26 @@ export function resolveHolderStarSpacing(
     placeTopHolderStar(rank, seed),
     (((hash >> 6) % 1000) / 1000) * Math.PI * 0.5,
   );
-  return enforceHolderStarPlacement(rank, fallback);
+  return finalizeHolderPlacement(rank, seed, fallback);
+}
+
+function finalizeHolderPlacement(
+  rank: number,
+  seed: string,
+  placement: StarPlacement,
+): StarPlacement {
+  let result = enforceHolderStarPlacement(rank, placement);
+  const cleared = clearPyreScreenOverlap(result.position, rank, seed);
+  if (
+    cleared[0] !== result.position[0] ||
+    cleared[1] !== result.position[1] ||
+    cleared[2] !== result.position[2]
+  ) {
+    const dist = Math.sqrt(cleared[0] ** 2 + cleared[1] ** 2 + cleared[2] ** 2);
+    result = enforceHolderStarPlacement(rank, {
+      position: cleared,
+      distanceFromCenter: dist,
+    });
+  }
+  return result;
 }

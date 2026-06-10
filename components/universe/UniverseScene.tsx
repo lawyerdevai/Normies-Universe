@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import BackgroundStars from "@/components/universe/BackgroundStars";
+import CameraResetHandler from "@/components/universe/CameraResetHandler";
 import CameraRig from "@/components/universe/CameraRig";
 import CentralCore from "@/components/universe/CentralCore";
 import CosmicDust from "@/components/universe/CosmicDust";
@@ -15,8 +16,16 @@ import HolderGroupStars from "@/components/universe/HolderGroupStars";
 import OuterHolderStars from "@/components/universe/OuterHolderStars";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
-import InfoPanel from "@/components/ui/InfoPanel";
 import SearchBar from "@/components/ui/SearchBar";
+import {
+  DEFAULT_CAMERA_FOV,
+  DEFAULT_CAMERA_NEAR,
+  DEFAULT_CAMERA_FAR,
+  MAX_ORBIT_DISTANCE,
+  MIN_ORBIT_DISTANCE,
+  MIN_POLAR_ANGLE,
+  MAX_POLAR_ANGLE,
+} from "@/lib/universe/cameraConfig";
 import {
   assignHoldersToStars,
   buildOuterHolderStars,
@@ -57,42 +66,38 @@ function SceneContent({
   holderGroups,
   outerStars,
   hoveredId,
-  selectedGroup,
   hoveredCore,
-  selectedCore,
   cameraTarget,
   pulseWallet,
   pulseKey,
   reducedMotion,
   isMobile,
   controlsRef,
+  resetKey,
   onHover,
-  onSelect,
   onCoreHover,
-  onCoreClick,
+  onResetCamera,
 }: {
   holderGroups: HolderGroupStar[];
   outerStars: OuterHolderStar[];
   hoveredId: string | null;
-  selectedGroup: HolderGroupStar | null;
   hoveredCore: boolean;
-  selectedCore: boolean;
   cameraTarget: CameraTarget;
   pulseWallet: string | null;
   pulseKey: number;
   reducedMotion: boolean;
   isMobile: boolean;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
+  resetKey: number;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
   ) => void;
-  onSelect: (group: HolderGroupStar) => void;
   onCoreHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
-  onCoreClick: () => void;
+  onResetCamera: () => void;
 }) {
   const layerDebug = DEFAULT_LAYER_DEBUG;
-  const isOverview = cameraTarget.type === "overview";
+  const controlsEnabled = cameraTarget.type === "overview";
 
   return (
     <>
@@ -123,16 +128,13 @@ function SceneContent({
       {layerDebug.cosmicDust ? <CosmicDust /> : null}
       <CentralCore
         isHovered={hoveredCore}
-        isSelected={selectedCore}
         reducedMotion={reducedMotion}
         debugEnabled={layerDebug.centralCore}
-        onClick={onCoreClick}
         onHover={(hovered, screenPos) => onCoreHover(hovered, screenPos)}
       />
       <HolderGroupStars
         groups={holderGroups}
         hoveredId={hoveredId}
-        selectedId={selectedGroup?.id ?? null}
         pulseWallet={pulseWallet}
         pulseKey={pulseKey}
         reducedMotion={reducedMotion}
@@ -142,27 +144,29 @@ function SceneContent({
           hits: layerDebug.holderStarHits,
         }}
         onHover={onHover}
-        onSelect={onSelect}
       />
 
       <CameraRig
         cameraTarget={cameraTarget}
         reducedMotion={reducedMotion}
         controlsRef={controlsRef}
+        resetKey={resetKey}
       />
+      <CameraResetHandler onReset={onResetCamera} />
 
       <OrbitControls
         ref={controlsRef}
+        target={[0, 0, 0]}
         enableDamping
         dampingFactor={0.06}
         rotateSpeed={0.22}
         zoomSpeed={0.3}
-        panSpeed={0.18}
-        minDistance={18}
-        maxDistance={200}
-        maxPolarAngle={Math.PI / 2.05}
-        enablePan={isOverview}
-        enabled={isOverview}
+        minDistance={MIN_ORBIT_DISTANCE}
+        maxDistance={MAX_ORBIT_DISTANCE}
+        minPolarAngle={MIN_POLAR_ANGLE}
+        maxPolarAngle={MAX_POLAR_ANGLE}
+        enablePan={false}
+        enabled={controlsEnabled}
       />
 
       {!isMobile && layerDebug.bloom && layerDebug.vignette ? (
@@ -244,11 +248,8 @@ export default function UniverseScene() {
   }, []);
 
   const [hoveredGroup, setHoveredGroup] = useState<HolderGroupStar | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<HolderGroupStar | null>(
-    null,
-  );
   const [hoveredCore, setHoveredCore] = useState(false);
-  const [selectedCore, setSelectedCore] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -258,10 +259,8 @@ export default function UniverseScene() {
 
   const cameraTarget: CameraTarget = useMemo(() => {
     if (searchTarget) return searchTarget;
-    if (selectedGroup) return { type: "group", group: selectedGroup };
-    if (selectedCore) return { type: "core" };
     return { type: "overview" };
-  }, [searchTarget, selectedGroup, selectedCore]);
+  }, [searchTarget]);
 
   const handleHover = useCallback(
     (group: HolderGroupStar | null, screenPos?: { x: number; y: number }) => {
@@ -271,14 +270,6 @@ export default function UniverseScene() {
     },
     [],
   );
-
-  const handleSelect = useCallback((group: HolderGroupStar) => {
-    setSelectedGroup(group);
-    setSelectedCore(false);
-    setSearchTarget(null);
-    setHoveredGroup(null);
-    setTooltipPos(null);
-  }, []);
 
   const handleCoreHover = useCallback(
     (hovered: boolean, screenPos?: { x: number; y: number }) => {
@@ -293,18 +284,12 @@ export default function UniverseScene() {
     [hoveredGroup],
   );
 
-  const handleCoreClick = useCallback(() => {
-    setSelectedCore(true);
-    setSelectedGroup(null);
+  const handleResetCamera = useCallback(() => {
     setSearchTarget(null);
     setHoveredGroup(null);
+    setHoveredCore(false);
     setTooltipPos(null);
-  }, []);
-
-  const handleBack = useCallback(() => {
-    setSelectedGroup(null);
-    setSelectedCore(false);
-    setSearchTarget(null);
+    setResetKey((k) => k + 1);
   }, []);
 
   const handleSearch = useCallback(
@@ -318,8 +303,6 @@ export default function UniverseScene() {
           : match.star.wallet;
 
       setSearchTarget({ type: "search", position: match.star.position });
-      setSelectedGroup(null);
-      setSelectedCore(false);
       setPulseWallet(wallet);
       setPulseKey((k) => k + 1);
     },
@@ -329,7 +312,12 @@ export default function UniverseScene() {
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black">
       <Canvas
-        camera={{ position: [0, 48, 155], fov: 50, near: 0.1, far: 500 }}
+        camera={{
+          position: [0, 48, 155],
+          fov: DEFAULT_CAMERA_FOV,
+          near: DEFAULT_CAMERA_NEAR,
+          far: DEFAULT_CAMERA_FAR,
+        }}
         dpr={isMobile ? 1 : [1, 1.5]}
         gl={{
           antialias: !isMobile,
@@ -346,17 +334,15 @@ export default function UniverseScene() {
           hoveredId={hoveredGroup?.id ?? null}
           pulseWallet={pulseWallet}
           pulseKey={pulseKey}
-          selectedGroup={selectedGroup}
           hoveredCore={hoveredCore}
-          selectedCore={selectedCore}
           cameraTarget={cameraTarget}
           reducedMotion={reducedMotion}
           isMobile={isMobile}
           controlsRef={controlsRef}
+          resetKey={resetKey}
           onHover={handleHover}
-          onSelect={handleSelect}
           onCoreHover={handleCoreHover}
-          onCoreClick={handleCoreClick}
+          onResetCamera={handleResetCamera}
         />
       </Canvas>
 
@@ -377,7 +363,6 @@ export default function UniverseScene() {
         showCore={hoveredCore}
         position={tooltipPos}
       />
-      <InfoPanel group={selectedGroup} onBack={handleBack} />
     </div>
   );
 }

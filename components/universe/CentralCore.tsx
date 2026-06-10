@@ -52,10 +52,8 @@ const fragmentShader = /* glsl */ `
 
 interface CentralCoreProps {
   isHovered: boolean;
-  isSelected: boolean;
   reducedMotion?: boolean;
   debugEnabled?: boolean;
-  onClick: () => void;
   onHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
 }
 

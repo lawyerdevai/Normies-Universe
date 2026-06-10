@@ -9,6 +9,7 @@ import {
   holderStarCollisionRadius,
   resolveHolderStarSpacing,
 } from "./resolveHolderStarSpacing";
+import { verifyPyreScreenExclusion } from "./pyreScreenExclusion";
 import { verifyHolderBandPlacement } from "./verifyHolderBandPlacement";
 
 export function countClickableStars(stars: HolderGroupStar[]) {
@@ -104,13 +105,13 @@ export function assignHoldersToStars(
 
   if (process.env.NODE_ENV === "development") {
     const placed = result.filter((s) => s.collectionRank !== undefined);
-    const bandCheck = verifyHolderBandPlacement(
-      placed.map((s) => ({
-        collectionRank: s.collectionRank!,
-        position: s.position,
-        distanceFromCenter: s.distanceFromCenter,
-      })),
-    );
+    const placedForVerify = placed.map((s) => ({
+      collectionRank: s.collectionRank!,
+      position: s.position,
+      distanceFromCenter: s.distanceFromCenter,
+    }));
+    const bandCheck = verifyHolderBandPlacement(placedForVerify);
+    const screenCheck = verifyPyreScreenExclusion(placedForVerify);
     console.info(
       "[Normie Universe] Holder band placement verify",
       {
@@ -118,6 +119,8 @@ export function assignHoldersToStars(
         bandViolations: bandCheck.bandViolations.length,
         pyreViolations: bandCheck.pyreViolations.length,
         orderingOk: bandCheck.orderingOk,
+        screenClear: screenCheck.allClear,
+        screenViolations: screenCheck.violations.length,
       },
       bandCheck.checks.map((c) => ({
         rank: c.rank,

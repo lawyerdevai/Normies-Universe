@@ -1,6 +1,6 @@
 "use client";
 
-import { type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
@@ -20,7 +20,6 @@ export type HolderGroupStarsDebugLayers = {
 interface HolderGroupStarsProps {
   groups: HolderGroupStar[];
   hoveredId: string | null;
-  selectedId: string | null;
   pulseWallet?: string | null;
   pulseKey?: number;
   reducedMotion?: boolean;
@@ -29,7 +28,6 @@ interface HolderGroupStarsProps {
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
   ) => void;
-  onSelect: (group: HolderGroupStar) => void;
 }
 
 const _projected = new THREE.Vector3();
@@ -224,12 +222,10 @@ const _scale = new THREE.Vector3();
 export default function HolderGroupStars({
   groups,
   hoveredId,
-  selectedId,
   pulseWallet = null,
   pulseKey = 0,
   debugLayers,
   onHover,
-  onSelect,
 }: HolderGroupStarsProps) {
   const showVisible = debugLayers?.visible ?? true;
   const showGlow = debugLayers?.glow ?? true;
@@ -241,7 +237,6 @@ export default function HolderGroupStars({
   const lastHoverId = useRef<string | null>(null);
   const visualsRef = useRef<HolderStarVisual[]>([]);
   const hoveredIndex = groups.findIndex((g) => g.id === hoveredId);
-  const selectedIndex = groups.findIndex((g) => g.id === selectedId);
 
   const hitGeometry = useMemo(() => new THREE.SphereGeometry(1, 8, 8), []);
 
@@ -359,7 +354,7 @@ export default function HolderGroupStars({
   useFrame(() => {
     if (!pointsRef.current) return;
     material.uniforms.uHoveredIndex.value = hoveredIndex;
-    material.uniforms.uSelectedIndex.value = selectedIndex;
+    material.uniforms.uSelectedIndex.value = -1;
 
     const nearest = pickNearestGroup(
       pointer,
@@ -398,20 +393,6 @@ export default function HolderGroupStars({
       Math.sin(Math.min(elapsed / 0.55, 1) * Math.PI);
   });
 
-  const handleClick = (e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation();
-    const nearest =
-      pickNearestGroup(
-        e.pointer,
-        camera,
-        size,
-        groups,
-        visualsRef.current,
-      ) ??
-      (e.instanceId !== undefined ? groups[e.instanceId] : null);
-    if (nearest) onSelect(nearest);
-  };
-
   return (
     <group name="holder-group-stars">
       <instancedMesh
@@ -420,7 +401,6 @@ export default function HolderGroupStars({
         visible={showHits}
         frustumCulled={false}
         renderOrder={12}
-        onClick={handleClick}
       />
       {showVisible ? (
         <points
