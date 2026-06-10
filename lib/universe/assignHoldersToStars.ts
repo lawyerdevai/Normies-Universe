@@ -1,6 +1,7 @@
 import type { RankedHolder } from "@/lib/opensea/holders";
 import { truncateWallet } from "@/lib/opensea/holders";
 import type { HolderGroupStar } from "@/types/universe";
+import { normalizeWalletAddress } from "./normalizeWalletAddress";
 import {
   normieRangeFromStars,
   visualFromHoldings,
@@ -44,12 +45,14 @@ export function assignHoldersToStars(
     const holder = assignments.get(star.id);
     if (!holder) return star;
 
+    const wallet = normalizeWalletAddress(holder.address);
+
     return {
       ...star,
-      id: `holder-${holder.address.toLowerCase()}`,
-      label: truncateWallet(holder.address),
-      wallet: holder.address,
-      walletDisplay: truncateWallet(holder.address),
+      id: `holder-${wallet}`,
+      label: truncateWallet(wallet),
+      wallet,
+      walletDisplay: truncateWallet(wallet),
       collectionRank: holder.rank,
       totalNormies: holder.count,
       holderCount: 1,

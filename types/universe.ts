@@ -75,6 +75,8 @@ export type LocatorTarget =
       baseCoreSize?: number;
       baseGlowSize?: number;
       baseGlowOpacity?: number;
+      baseBrightness?: number;
+      baseSparkle?: number;
       baseScreenPixels?: number;
       color: string;
     }

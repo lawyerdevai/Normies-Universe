@@ -9,7 +9,10 @@ import {
   visualFromHoldings,
   type HolderStarVisual,
 } from "@/lib/universe/holderStarVisual";
+import { createHolderStarPointMaterial } from "@/lib/universe/holderStarPointShader";
 import { isPointerOverPyre } from "@/lib/universe/isPointerOverPyre";
+import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
+import { searchHighlightStore } from "@/lib/universe/searchHighlightStore";
 import type { HolderGroupStar } from "@/types/universe";
 
 export type HolderGroupStarsDebugLayers = {
@@ -163,81 +166,6 @@ function starVisual(
   };
 }
 
-const vertexShader = /* glsl */ `
-  attribute float aCoreSize;
-  attribute float aGlowSize;
-  attribute float aGlowOpacity;
-  attribute float aBrightness;
-  attribute float aSparkle;
-  attribute vec3 color;
-  uniform float uShowGlow;
-  uniform int uHoveredIndex;
-  uniform int uSelectedIndex;
-  varying float vBrightness;
-  varying float vGlow;
-  varying float vSparkle;
-  varying vec3 vColor;
-  varying float vIsSelected;
-
-  void main() {
-    vColor = color;
-    vSparkle = aSparkle;
-    vGlow = aGlowOpacity;
-    float hovered = float(gl_VertexID == uHoveredIndex);
-    float selected = float(gl_VertexID == uSelectedIndex);
-    vIsSelected = selected;
-    vBrightness = aBrightness * (1.0 + hovered * 0.14 + selected * 0.05);
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    float size = (aCoreSize + aGlowSize * vGlow * uShowGlow) * (1.0 + hovered * 0.06 + selected * 0.03);
-    float pixelSize = size * (235.0 / -mvPosition.z);
-    gl_PointSize = clamp(pixelSize, 3.0, 88.0);
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-const fragmentShader = /* glsl */ `
-  uniform float uShowGlow;
-  varying float vBrightness;
-  varying float vGlow;
-  varying float vSparkle;
-  varying vec3 vColor;
-  varying float vIsSelected;
-
-  void main() {
-    vec2 uv = gl_PointCoord - 0.5;
-    float dist = length(uv);
-
-    if (dist > 0.47) discard;
-
-    float circleMask = 1.0 - smoothstep(0.34, 0.47, dist);
-    vec2 skew = vec2(uv.x * 1.08, uv.y * 0.92);
-    float dEll = length(vec2(skew.x * 1.2, skew.y * 0.78));
-
-    float core = exp(-length(skew) * length(skew) * 72.0);
-    float glow = exp(-dist * dist * mix(10.0, 4.5, vGlow)) * vGlow * 0.62 * uShowGlow;
-
-    float cross = exp(-abs(uv.x) * 36.0) * 0.48 + exp(-abs(uv.y) * 36.0) * 0.48;
-    float sparkle = cross * vSparkle * circleMask;
-
-    float alpha = (core * 1.15 + glow + sparkle * 0.52) * vBrightness * circleMask;
-
-    if (vIsSelected > 0.5) {
-      float ring = smoothstep(0.38, 0.4, dist) * (1.0 - smoothstep(0.42, 0.44, dist));
-      alpha += ring * 0.08 * circleMask;
-    }
-
-    if (alpha < 0.001) discard;
-
-    vec3 warm = vec3(
-      min(vColor.r * 1.12 + 0.1, 1.0),
-      min(vColor.g * 1.06 + 0.07, 1.0),
-      vColor.b * 0.84 + 0.03
-    );
-    vec3 col = warm * (core * 1.35 + glow * 0.5 + sparkle * 0.4 + 0.2);
-    gl_FragColor = vec4(col, alpha);
-  }
-`;
-
 const _matrix = new THREE.Matrix4();
 const _position = new THREE.Vector3();
 const _scale = new THREE.Vector3();
@@ -261,6 +189,7 @@ export default function HolderGroupStars({
   const hitRef = useRef<THREE.InstancedMesh>(null);
   const lastHoverId = useRef<string | null>(null);
   const visualsRef = useRef<HolderStarVisual[]>([]);
+  const prevHiddenIndex = useRef(-1);
   const hoveredIndex = groups.findIndex((g) => g.id === hoveredId);
   const selectedIndex = groups.findIndex((g) => g.id === selectedId);
 
@@ -320,20 +249,7 @@ export default function HolderGroupStars({
       new THREE.BufferAttribute(brightness, 1),
     );
 
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        uShowGlow: { value: showGlow ? 1 : 0 },
-        uHoveredIndex: { value: -1 },
-        uSelectedIndex: { value: -1 },
-      },
-      vertexShader,
-      fragmentShader,
-      transparent: true,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    });
+    const material = createHolderStarPointMaterial(showGlow);
 
     visualsRef.current = visuals;
     return { geometry, material };
@@ -407,6 +323,56 @@ export default function HolderGroupStars({
     if (!pointsRef.current) return;
     material.uniforms.uHoveredIndex.value = hoveredIndex;
     material.uniforms.uSelectedIndex.value = selectedIndex;
+
+    const { wallet, starKind, highlightPersist } = searchHighlightStore;
+
+    let hiddenIndex = -1;
+    if (starKind === "top75" && highlightPersist && wallet) {
+      const key = normalizeWalletAddress(wallet);
+      hiddenIndex = groups.findIndex(
+        (g) => normalizeWalletAddress(g.wallet ?? g.id) === key,
+      );
+    }
+
+    if (hiddenIndex >= 0 || prevHiddenIndex.current >= 0) {
+      const coreAttr = geometry.getAttribute("aCoreSize") as THREE.BufferAttribute;
+      const glowAttr = geometry.getAttribute("aGlowSize") as THREE.BufferAttribute;
+      const glowOpAttr = geometry.getAttribute(
+        "aGlowOpacity",
+      ) as THREE.BufferAttribute;
+      const sparkleAttr = geometry.getAttribute(
+        "aSparkle",
+      ) as THREE.BufferAttribute;
+      const brightnessAttr = geometry.getAttribute(
+        "aBrightness",
+      ) as THREE.BufferAttribute;
+
+      groups.forEach((_, i) => {
+        const base = visualsRef.current[i];
+        if (!base) return;
+
+        if (i === hiddenIndex && hiddenIndex >= 0) {
+          coreAttr.setX(i, 0);
+          glowAttr.setX(i, 0);
+          glowOpAttr.setX(i, 0);
+          sparkleAttr.setX(i, 0);
+          brightnessAttr.setX(i, 0);
+        } else {
+          coreAttr.setX(i, base.coreSize);
+          glowAttr.setX(i, base.glowSize);
+          glowOpAttr.setX(i, base.glowOpacity);
+          sparkleAttr.setX(i, base.sparkle);
+          brightnessAttr.setX(i, base.brightness);
+        }
+      });
+
+      coreAttr.needsUpdate = true;
+      glowAttr.needsUpdate = true;
+      glowOpAttr.needsUpdate = true;
+      sparkleAttr.needsUpdate = true;
+      brightnessAttr.needsUpdate = true;
+    }
+    prevHiddenIndex.current = hiddenIndex;
 
     const nearest = pickNearestGroup(
       pointer,

@@ -4,6 +4,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { buildDecorativeSkyStars } from "@/lib/universe/buildDecorativeSkyStars";
+import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
+import { searchHighlightStore } from "@/lib/universe/searchHighlightStore";
 import type { DecorativeSkyStar, OuterHolderStar } from "@/types/universe";
 
 function createSkyStarTexture() {
@@ -49,14 +51,20 @@ function updateSkyInstances(
   camQuat: THREE.Quaternion,
   dummy: THREE.Object3D,
   time: number,
-  pulseIndex: number,
-  pulseStrength: number,
+  hiddenIndex: number,
 ) {
   for (let i = 0; i < stars.length; i++) {
     const star = stars[i];
     const [x, y, z] = star.position;
     dummy.position.set(x, y, z);
     dummy.quaternion.copy(camQuat);
+
+    if (i === hiddenIndex) {
+      dummy.scale.set(0, 0, 0);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      continue;
+    }
 
     const dist = dummy.position.distanceTo(camera.position);
     let pixels = star.screenPixels;
@@ -66,11 +74,8 @@ function updateSkyInstances(
     }
 
     if (star.twinkles) {
-      pixels *= 0.94 + 0.06 * Math.sin(time * star.twinkleSpeed + star.twinklePhase);
-    }
-
-    if (pulseIndex === i) {
-      pixels *= 1 + pulseStrength * 0.55;
+      pixels *=
+        0.94 + 0.06 * Math.sin(time * star.twinkleSpeed + star.twinklePhase);
     }
 
     const worldSize = pixels * pixelWorld * dist;
@@ -126,6 +131,15 @@ export default function OuterHolderStars({ stars }: OuterHolderStarsProps) {
     const pixelWorld = (2 * Math.tan((persp.fov * Math.PI) / 360)) / size.height;
     const camQuat = camera.quaternion;
     const time = clock.elapsedTime;
+    const { wallet, starKind, highlightPersist } = searchHighlightStore;
+
+    let hiddenIndex = -1;
+    if (starKind === "outer" && wallet && highlightPersist) {
+      const key = normalizeWalletAddress(wallet);
+      hiddenIndex = stars.findIndex(
+        (s) => normalizeWalletAddress(s.wallet ?? s.id) === key,
+      );
+    }
 
     if (decoRef.current) {
       updateSkyInstances(
@@ -137,7 +151,6 @@ export default function OuterHolderStars({ stars }: OuterHolderStarsProps) {
         dummy,
         time,
         -1,
-        0,
       );
     }
 
@@ -150,8 +163,7 @@ export default function OuterHolderStars({ stars }: OuterHolderStarsProps) {
         camQuat,
         dummy,
         time,
-        -1,
-        0,
+        hiddenIndex,
       );
     }
   });

@@ -1,5 +1,6 @@
 import type { HolderGroupStar, LocatorTarget, OuterHolderStar } from "@/types/universe";
 import { visualFromHoldings, normieRangeFromStars } from "./holderStarVisual";
+import { normalizeWalletAddress } from "./normalizeWalletAddress";
 import { findHolderByWallet } from "./searchHolderStars";
 
 export type ParsedSearchQuery =
@@ -18,7 +19,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
   }
 
   if (/^0x[a-fA-F0-9]+$/i.test(trimmed)) {
-    return { type: "wallet", address: trimmed };
+    return { type: "wallet", address: normalizeWalletAddress(trimmed) };
   }
 
   return { type: "invalid" };
@@ -49,7 +50,7 @@ export function locatorFromHolderMatch(
     return {
       kind: "holder",
       starKind: "top75",
-      wallet: star.wallet ?? star.id,
+      wallet: normalizeWalletAddress(star.wallet ?? star.id),
       walletDisplay: star.walletDisplay ?? star.label,
       normieCount: star.totalNormies,
       rank: star.collectionRank ?? star.rankStart,
@@ -57,6 +58,8 @@ export function locatorFromHolderMatch(
       baseCoreSize: visual.coreSize,
       baseGlowSize: visual.glowSize,
       baseGlowOpacity: visual.glowOpacity,
+      baseBrightness: visual.brightness,
+      baseSparkle: visual.sparkle,
       color: star.color,
     };
   }
@@ -65,7 +68,7 @@ export function locatorFromHolderMatch(
   return {
     kind: "holder",
     starKind: "outer",
-    wallet: star.wallet,
+    wallet: normalizeWalletAddress(star.wallet ?? star.id),
     walletDisplay: star.walletDisplay,
     normieCount: star.normieCount,
     rank: star.collectionRank,

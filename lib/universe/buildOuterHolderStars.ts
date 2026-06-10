@@ -1,6 +1,7 @@
 import type { RankedHolder } from "@/lib/opensea/holders";
 import { truncateWallet } from "@/lib/opensea/holders";
 import type { OuterHolderStar } from "@/types/universe";
+import { normalizeWalletAddress } from "./normalizeWalletAddress";
 import { hashSeed, skyVisualFromHash } from "./outerSkyMath";
 import { placeOuterHolderStar } from "./placeOuterHolderStar";
 
@@ -8,16 +9,16 @@ export function buildOuterHolderStars(
   rankedHolders: RankedHolder[],
 ): OuterHolderStar[] {
   return rankedHolders.slice(75).map((holder) => {
-    const wallet = holder.address.toLowerCase();
+    const wallet = normalizeWalletAddress(holder.address);
     const hash = hashSeed(wallet);
     const visual = skyVisualFromHash(hash, (hash >> 20) % 100);
 
-    const placement = placeOuterHolderStar(holder.address);
+    const placement = placeOuterHolderStar(wallet);
 
     return {
       id: `outer-${wallet}`,
-      wallet: holder.address,
-      walletDisplay: truncateWallet(holder.address),
+      wallet,
+      walletDisplay: truncateWallet(wallet),
       collectionRank: holder.rank,
       normieCount: holder.count,
       position: placement.position,

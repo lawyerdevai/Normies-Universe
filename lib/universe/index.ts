@@ -16,7 +16,7 @@ export { resolveHolderStarSpacing } from "./resolveHolderStarSpacing";
 export { buildOuterHolderStars } from "./buildOuterHolderStars";
 export { buildDecorativeSkyStars } from "./buildDecorativeSkyStars";
 export { placeOuterHolderStar } from "./placeOuterHolderStar";
-export { findHolderByWallet } from "./searchHolderStars";
+export { findHolderByWallet, normalizeWalletAddress } from "./searchHolderStars";
 export {
   parseSearchQuery,
   locatorFromHolderMatch,

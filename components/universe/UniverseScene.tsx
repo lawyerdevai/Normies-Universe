@@ -14,6 +14,7 @@ import CosmicDust from "@/components/universe/CosmicDust";
 import GalaxyAtmosphere from "@/components/universe/GalaxyAtmosphere";
 import HolderGroupStars from "@/components/universe/HolderGroupStars";
 import OuterHolderStars from "@/components/universe/OuterHolderStars";
+import SearchHighlightStar from "@/components/universe/SearchHighlightStar";
 import SearchLocator from "@/components/universe/SearchLocator";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
@@ -37,6 +38,7 @@ import {
   getHolderGroups,
   verifyAssignment,
 } from "@/lib/universe";
+import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
 import {
   locatorFromHolderMatch,
   parseSearchQuery,
@@ -89,7 +91,7 @@ function useIsMobile() {
 
 function holderToWalletSelection(group: HolderGroupStar): WalletSelection {
   return {
-    wallet: group.wallet ?? group.id,
+    wallet: normalizeWalletAddress(group.wallet ?? group.id),
     walletDisplay: group.walletDisplay ?? group.label,
     normieCount: group.totalNormies,
     rank: group.collectionRank ?? group.rankStart,
@@ -98,7 +100,7 @@ function holderToWalletSelection(group: HolderGroupStar): WalletSelection {
 
 function outerToWalletSelection(star: OuterHolderStar): WalletSelection {
   return {
-    wallet: star.wallet,
+    wallet: normalizeWalletAddress(star.wallet ?? star.id),
     walletDisplay: star.walletDisplay,
     normieCount: star.normieCount,
     rank: star.collectionRank,
@@ -113,7 +115,6 @@ function SceneContent({
   locatorTarget,
   locatorKey,
   highlightPersist,
-  pyreLocatorKey,
   reducedMotion,
   isMobile,
   controlsRef,
@@ -135,7 +136,6 @@ function SceneContent({
   locatorTarget: LocatorTarget | null;
   locatorKey: number;
   highlightPersist: boolean;
-  pyreLocatorKey: number;
   reducedMotion: boolean;
   isMobile: boolean;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
@@ -176,6 +176,15 @@ function SceneContent({
           particleHalo: layerDebug.galaxyParticleHalo,
         }}
       />
+      <SearchLocator
+        target={locatorTarget}
+        locatorKey={locatorKey}
+        highlightPersist={highlightPersist}
+        onHighlightDismissed={onHighlightDismissed}
+      />
+
+      <SearchHighlightStar target={locatorTarget} locatorKey={locatorKey} />
+
       <OuterHolderStars stars={outerStars} />
       {layerDebug.cosmicDust ? <CosmicDust /> : null}
       <HolderGroupStars
@@ -199,15 +208,7 @@ function SceneContent({
         reducedMotion={reducedMotion}
         debugEnabled={layerDebug.centralCore}
         starHoverRef={starHoverRef}
-        pyreLocatorKey={pyreLocatorKey}
         onHover={(hovered, screenPos) => onCoreHover(hovered, screenPos)}
-      />
-
-      <SearchLocator
-        target={locatorTarget}
-        locatorKey={locatorKey}
-        highlightPersist={highlightPersist}
-        onHighlightDismissed={onHighlightDismissed}
       />
 
       <CameraRig
@@ -324,8 +325,6 @@ export default function UniverseScene() {
   const [searchLocator, setSearchLocator] = useState<SearchLocatorState>(
     INITIAL_SEARCH_LOCATOR,
   );
-  const [pyreLocatorKey, setPyreLocatorKey] = useState(0);
-
   const handleHighlightDismissed = useCallback(() => {
     setSearchLocator((prev) =>
       prev.highlightPersist ? prev : { ...prev, target: null },
@@ -368,7 +367,6 @@ export default function UniverseScene() {
     setSearchLocator((prev) => ({
       ...prev,
       highlightPersist: false,
-      target: prev.target?.kind === "pyre" ? null : prev.target,
     }));
   }, []);
 
@@ -449,15 +447,18 @@ export default function UniverseScene() {
           setSearchLocator((prev) => ({
             key: prev.key + 1,
             target: pyreTarget,
-            highlightPersist: false,
+            highlightPersist: true,
           }));
-          setPyreLocatorKey((k) => k + 1);
           setWalletSelection(null);
           setPyreOpen(true);
           return;
         }
 
-        const match = findHolderByWallet(data.owner, holderGroups, outerStars);
+        const match = findHolderByWallet(
+          normalizeWalletAddress(data.owner),
+          holderGroups,
+          outerStars,
+        );
         if (!match) {
           setSearchNotFound(true);
           return;
@@ -495,14 +496,17 @@ export default function UniverseScene() {
           hoveredId={hoveredGroup?.id ?? null}
           selectedId={
             walletSelection
-              ? holderGroups.find((g) => g.wallet === walletSelection.wallet)
-                  ?.id ?? null
+              ? holderGroups.find(
+                  (g) =>
+                    g.wallet &&
+                    normalizeWalletAddress(g.wallet) ===
+                      normalizeWalletAddress(walletSelection.wallet),
+                )?.id ?? null
               : null
           }
           locatorTarget={searchLocator.target}
           locatorKey={searchLocator.key}
           highlightPersist={searchLocator.highlightPersist}
-          pyreLocatorKey={pyreLocatorKey}
           hoveredCore={hoveredCore}
           reducedMotion={reducedMotion}
           isMobile={isMobile}
