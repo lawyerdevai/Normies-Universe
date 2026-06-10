@@ -1,13 +1,14 @@
 "use client";
 
+import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { createRng } from "@/lib/universe/seededRandom";
 
 const LAYERS = [
-  { count: 9000, seed: 88001, size: [0.08, 0.28] as [number, number], brightness: [0.02, 0.07] as [number, number], spread: 1.4 },
-  { count: 2800, seed: 88002, size: [0.2, 0.55] as [number, number], brightness: [0.05, 0.14] as [number, number], spread: 1.0 },
-  { count: 900, seed: 88003, size: [0.45, 1.1] as [number, number], brightness: [0.1, 0.28] as [number, number], spread: 0.65 },
+  { count: 9000, seed: 88001, size: [0.09, 0.32] as [number, number], brightness: [0.025, 0.08] as [number, number], spread: 1.4 },
+  { count: 2800, seed: 88002, size: [0.22, 0.6] as [number, number], brightness: [0.06, 0.16] as [number, number], spread: 1.0 },
+  { count: 900, seed: 88003, size: [0.5, 1.2] as [number, number], brightness: [0.12, 0.32] as [number, number], spread: 0.65 },
 ];
 
 const vertexShader = /* glsl */ `
@@ -46,6 +47,13 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
+type TwinkleMeta = {
+  baseBrightness: Float32Array;
+  phases: Float32Array;
+  speeds: Float32Array;
+  enabled: Uint8Array;
+};
+
 export type BackgroundStarsDebugLayers = {
   enabled: boolean;
   particleHalo: boolean;
@@ -57,6 +65,7 @@ interface BackgroundStarsProps {
 
 export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
   const pointsRef = useRef<THREE.Points>(null);
+  const twinkleRef = useRef<TwinkleMeta | null>(null);
   const enabled = debugLayers?.enabled ?? true;
   const showHalo = debugLayers?.particleHalo ?? true;
 
@@ -66,6 +75,10 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
     const sizes = new Float32Array(total);
     const brightness = new Float32Array(total);
     const colors = new Float32Array(total * 3);
+    const baseBrightness = new Float32Array(total);
+    const phases = new Float32Array(total);
+    const speeds = new Float32Array(total);
+    const twinkleEnabled = new Uint8Array(total);
 
     let offset = 0;
     for (const layer of LAYERS) {
@@ -79,7 +92,16 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
         positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.3;
         positions[idx * 3 + 2] = r * Math.cos(phi);
         sizes[idx] = lerp(layer.size[0], layer.size[1], rng());
-        brightness[idx] = lerp(layer.brightness[0], layer.brightness[1], rng());
+        const bright = lerp(layer.brightness[0], layer.brightness[1], rng());
+        brightness[idx] = bright;
+        baseBrightness[idx] = bright;
+
+        if (rng() < 0.08) {
+          twinkleEnabled[idx] = 1;
+          phases[idx] = rng() * Math.PI * 2;
+          const period = 2 + rng();
+          speeds[idx] = (Math.PI * 2) / period;
+        }
 
         const tint = rng();
         let cr = 0.76 + tint * 0.06;
@@ -96,6 +118,13 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
       }
       offset += layer.count;
     }
+
+    twinkleRef.current = {
+      baseBrightness,
+      phases,
+      speeds,
+      enabled: twinkleEnabled,
+    };
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -119,6 +148,29 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
     if (pointsRef.current) {
       pointsRef.current.raycast = () => {};
     }
+  });
+
+  useFrame(({ clock }) => {
+    const meta = twinkleRef.current;
+    const attr = geometry.getAttribute("aBrightness") as THREE.BufferAttribute;
+    if (!meta || !attr) return;
+
+    const t = clock.elapsedTime;
+    const { baseBrightness, phases, speeds, enabled: twinkleOn } = meta;
+    let dirty = false;
+
+    for (let i = 0; i < baseBrightness.length; i++) {
+      if (!twinkleOn[i]) continue;
+      const wave = Math.sin(t * speeds[i] + phases[i]);
+      const lift = Math.max(0, wave);
+      const next = baseBrightness[i] * (1.0 + lift * 0.25);
+      if (attr.getX(i) !== next) {
+        attr.setX(i, next);
+        dirty = true;
+      }
+    }
+
+    if (dirty) attr.needsUpdate = true;
   });
 
   if (!enabled) return null;

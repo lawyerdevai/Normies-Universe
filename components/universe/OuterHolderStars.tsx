@@ -78,8 +78,9 @@ function updateSkyInstances(
     }
 
     if (star.twinkles) {
-      pixels *=
-        0.94 + 0.06 * Math.sin(time * star.twinkleSpeed + star.twinklePhase);
+      const wave = Math.sin(time * star.twinkleSpeed + star.twinklePhase);
+      const lift = Math.max(0, wave);
+      pixels *= 1.0 + lift * 0.18;
     }
 
     const worldSize = pixels * pixelWorld * dist;
@@ -132,8 +133,9 @@ function updateHolderInstances(
         baseBrightness +
         (targetBright - baseBrightness) * highlightBlend;
     } else if (star.twinkles) {
-      pixels *=
-        0.94 + 0.06 * Math.sin(time * star.twinkleSpeed + star.twinklePhase);
+      const wave = Math.sin(time * star.twinkleSpeed + star.twinklePhase);
+      const lift = Math.max(0, wave);
+      pixels *= 1.0 + lift * 0.18;
     }
 
     const worldSize = pixels * pixelWorld * dist;

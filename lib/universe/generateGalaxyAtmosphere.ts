@@ -126,7 +126,7 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
   }
 
   // Two spiral arms — monochromatic cloud clusters
-  const perArm = Math.floor((count * 0.82) / 2);
+  const perArm = Math.floor(((count * 0.82) / 2) * 1.4);
   for (let arm = 0; arm < 2; arm++) {
     const startAngle = arm * Math.PI;
     for (let i = 0; i < perArm; i++) {
@@ -150,7 +150,7 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
       particles.push({
         position: [x, y, z],
         size: 0.3 + coreProx * 1.4 + (1 - t) * 0.5 + rng() * 0.4,
-        brightness: baseBright * (0.6 + spineWeight * 0.7),
+        brightness: baseBright * (0.6 + spineWeight * 0.7) * 1.2,
         color: armColorByRadius(r, rng),
         isCore: false,
       });

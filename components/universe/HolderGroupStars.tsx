@@ -168,10 +168,16 @@ const _matrix = new THREE.Matrix4();
 const _position = new THREE.Vector3();
 const _scale = new THREE.Vector3();
 
+function ambientGlintEnvelope(age: number): number {
+  if (age < 0 || age >= 1.5) return 0;
+  return Math.sin((age / 1.5) * Math.PI) * 0.07;
+}
+
 export default function HolderGroupStars({
   groups,
   hoveredId,
   selectedId,
+  reducedMotion = false,
   debugLayers,
   hoverRef,
   onHover,
@@ -189,6 +195,11 @@ export default function HolderGroupStars({
   const visualsRef = useRef<HolderStarVisual[]>([]);
   const hoveredIndex = groups.findIndex((g) => g.id === hoveredId);
   const selectedIndex = groups.findIndex((g) => g.id === selectedId);
+  const glintRef = useRef({
+    index: -1,
+    startTime: -999,
+    nextAt: 4 + Math.random() * 3,
+  });
 
   const hitGeometry = useMemo(() => new THREE.SphereGeometry(1, 8, 8), []);
 
@@ -316,10 +327,38 @@ export default function HolderGroupStars({
     onEmptyClick,
   ]);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     if (!pointsRef.current) return;
     material.uniforms.uHoveredIndex.value = hoveredIndex;
     material.uniforms.uSelectedIndex.value = selectedIndex;
+
+    if (!reducedMotion && groups.length > 0) {
+      const t = clock.elapsedTime;
+      const glint = glintRef.current;
+
+      if (t >= glint.nextAt) {
+        let idx = Math.floor(Math.random() * groups.length);
+        if (groups.length > 1) {
+          let guard = 0;
+          while (
+            (idx === hoveredIndex || idx === selectedIndex) &&
+            guard++ < 8
+          ) {
+            idx = Math.floor(Math.random() * groups.length);
+          }
+        }
+        glint.index = idx;
+        glint.startTime = t;
+        glint.nextAt = t + 3.5 + Math.random() * 4;
+      }
+
+      const age = t - glint.startTime;
+      material.uniforms.uGlintIndex.value = glint.index;
+      material.uniforms.uGlintBoost.value = ambientGlintEnvelope(age);
+    } else {
+      material.uniforms.uGlintIndex.value = -1;
+      material.uniforms.uGlintBoost.value = 0;
+    }
 
     const nearest = pickNearestGroup(
       pointer,

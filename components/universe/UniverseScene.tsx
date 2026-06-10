@@ -119,6 +119,7 @@ function SceneContent({
   onCoreHover,
   onPyreClick,
   onResetCamera,
+  totalBurned,
 }: {
   holderGroups: HolderGroupStar[];
   outerStars: OuterHolderStar[];
@@ -142,6 +143,7 @@ function SceneContent({
   onCoreHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
   onPyreClick: () => void;
   onResetCamera: () => void;
+  totalBurned: number | null;
 }) {
   const layerDebug = DEFAULT_LAYER_DEBUG;
 
@@ -197,6 +199,7 @@ function SceneContent({
       />
       <CentralCore
         isHovered={hoveredCore}
+        totalBurned={totalBurned}
         reducedMotion={reducedMotion}
         debugEnabled={layerDebug.centralCore}
         starHoverRef={starHoverRef}
@@ -322,6 +325,26 @@ export default function UniverseScene() {
   const [foundStar, setFoundStar] = useState<FoundStarState | null>(null);
   const [outerHighlight, setOuterHighlight] =
     useState<OuterHighlightState | null>(null);
+  const [totalBurned, setTotalBurned] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/pyre")
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json() as Promise<{ totalBurned?: number }>;
+      })
+      .then((data) => {
+        if (cancelled || data?.totalBurned == null) return;
+        setTotalBurned(data.totalBurned);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const deactivateSearchHighlights = useCallback(() => {
     setFoundStar((prev) => (prev ? { ...prev, active: false } : null));
@@ -515,6 +538,7 @@ export default function UniverseScene() {
           onEmptyClick={handleEmptyClick}
           onCoreHover={handleCoreHover}
           onResetCamera={handleResetCamera}
+          totalBurned={totalBurned}
         />
       </Canvas>
 
@@ -534,6 +558,7 @@ export default function UniverseScene() {
         group={hoveredGroup}
         showCore={hoveredCore}
         position={tooltipPos}
+        totalBurned={totalBurned}
       />
 
       <WalletDetailPanel

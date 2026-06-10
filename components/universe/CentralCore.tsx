@@ -3,7 +3,11 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { generatePyreParticles } from "@/lib/universe/generatePyre";
+import {
+  generatePyreParticles,
+  pyreParticleCount,
+  PYRE_COUNT,
+} from "@/lib/universe/generatePyre";
 import { isPointerOverPyre } from "@/lib/universe/isPointerOverPyre";
 import type { HolderGroupStar } from "@/types/universe";
 
@@ -65,6 +69,7 @@ function pointerScreenPos(
 
 interface CentralCoreProps {
   isHovered: boolean;
+  totalBurned?: number | null;
   reducedMotion?: boolean;
   debugEnabled?: boolean;
   starHoverRef?: React.RefObject<HolderGroupStar | null>;
@@ -73,6 +78,7 @@ interface CentralCoreProps {
 
 export default function CentralCore({
   isHovered,
+  totalBurned = null,
   reducedMotion = false,
   debugEnabled = true,
   starHoverRef,
@@ -85,7 +91,15 @@ export default function CentralCore({
     startTime: -999,
     nextAt: 6 + Math.random() * 5,
   });
-  const particles = useMemo(() => generatePyreParticles(), []);
+  const particleCount = useMemo(
+    () =>
+      totalBurned != null ? pyreParticleCount(totalBurned) : PYRE_COUNT,
+    [totalBurned],
+  );
+  const particles = useMemo(
+    () => generatePyreParticles(particleCount),
+    [particleCount],
+  );
 
   const { geometry, material, animMeta } = useMemo(() => {
     const count = particles.length;

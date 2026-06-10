@@ -92,13 +92,14 @@ export function skyVisualFromHash(hash: number, twinkleRoll: number): SkyStarVis
 
 export function decorativeSkyVisual(seed: number): SkyStarVisual {
   const rng = createRng(seed ^ 0xdec0de);
+  const twinkleRoll = seed % 100;
   return {
     tier: 0,
-    screenPixels: 1.0,
-    opacity: 0.05 + rng() * 0.07,
+    screenPixels: 1.12,
+    opacity: 0.06 + rng() * 0.085,
     color: stellarColor(seed, rng),
-    twinklePhase: 0,
-    twinkleSpeed: 0,
-    twinkles: false,
+    twinklePhase: ((seed % 6283) / 1000) * Math.PI * 2,
+    twinkleSpeed: (Math.PI * 2) / (2 + (seed % 1000) / 1000),
+    twinkles: twinkleRoll < 9,
   };
 }

@@ -6,12 +6,14 @@ interface StarTooltipProps {
   group: HolderGroupStar | null;
   showCore: boolean;
   position: { x: number; y: number } | null;
+  totalBurned?: number | null;
 }
 
 export default function StarTooltip({
   group,
   showCore,
   position,
+  totalBurned = null,
 }: StarTooltipProps) {
   if (!position || (!group && !showCore)) return null;
 
@@ -22,7 +24,9 @@ export default function StarTooltip({
         style={{ left: position.x, top: position.y - 12 }}
       >
         <p className="text-xs font-medium text-amber-50/90">
-          The Pyre · 1,839 Normies burned
+          {totalBurned != null
+            ? `The Pyre · ${totalBurned.toLocaleString()} Normies burned`
+            : "The Pyre"}
         </p>
       </div>
     );

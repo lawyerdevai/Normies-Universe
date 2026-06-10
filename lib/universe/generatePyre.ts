@@ -1,6 +1,14 @@
 import { clamp01, createRng, lerp } from "./seededRandom";
 
 export const PYRE_COUNT = 1839;
+/** Hard cap — live burned total maps 1:1 up to this count. */
+export const PYRE_PARTICLE_CAP = 4000;
+
+export function pyreParticleCount(totalBurned: number): number {
+  const n = Math.round(totalBurned);
+  if (!Number.isFinite(n) || n < 1) return PYRE_COUNT;
+  return Math.min(n, PYRE_PARTICLE_CAP);
+}
 /** Ellipsoid radii — fills the inner galactic core disc. */
 export const PYRE_RX = 11;
 export const PYRE_RY = 3.4;
