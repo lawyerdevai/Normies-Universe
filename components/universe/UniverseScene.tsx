@@ -14,6 +14,7 @@ import CosmicDust from "@/components/universe/CosmicDust";
 import GalaxyAtmosphere from "@/components/universe/GalaxyAtmosphere";
 import HolderGroupStars from "@/components/universe/HolderGroupStars";
 import FoundStar from "@/components/universe/FoundStar";
+import DeepSpaceGlimmer from "@/components/universe/DeepSpaceGlimmer";
 import OuterHolderStars from "@/components/universe/OuterHolderStars";
 import SearchLocator from "@/components/universe/SearchLocator";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
@@ -188,6 +189,12 @@ function SceneContent({
         stars={outerStars}
         highlightWallet={outerHighlight?.wallet ?? null}
         highlightActive={outerHighlight?.active ?? false}
+      />
+      <DeepSpaceGlimmer
+        avoidPositions={[
+          ...holderGroups.map((g) => g.position),
+          ...outerStars.map((s) => s.position),
+        ]}
       />
 
       {/* Top-75 search highlight — outer stars highlight in-place via instanced mesh */}
