@@ -10,6 +10,7 @@ import {
 } from "@/lib/universe/generatePyre";
 import { isPointerOverPyre } from "@/lib/universe/isPointerOverPyre";
 import type { HolderGroupStar } from "@/types/universe";
+import FusionChargeSparks from "@/components/universe/FusionChargeSparks";
 
 const GALAXY_EULER = new THREE.Euler(0.28, 0.15, 0.35, "XYZ");
 const GALAXY_SCALE = 1.15;
@@ -269,6 +270,7 @@ export default function CentralCore({
 
   return (
     <group rotation={GALAXY_EULER} scale={GALAXY_SCALE}>
+      <FusionChargeSparks reducedMotion={reducedMotion} />
       <points
         ref={pointsRef}
         geometry={geometry}
