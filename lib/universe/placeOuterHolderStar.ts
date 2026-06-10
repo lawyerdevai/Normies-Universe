@@ -47,23 +47,36 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Deterministic NDC target with organic patch bias — never a grid. */
+/**
+ * Deterministic NDC target — polar spread biased toward frame edges
+ * so holders sit in open sky around the galaxy, not over the arms.
+ */
 function ndcFromHash(hash: number): [number, number] {
   const u0 = hashUnit(hash, 0);
   const u1 = hashUnit(hash, 5);
   const u2 = hashUnit(hash, 11);
   const u3 = hashUnit(hash, 19);
-  const patch =
-    Math.sin(u0 * 9.2 + u1 * 6.3) * 0.5 +
-    Math.cos(u0 * 4.1 - u1 * 3.7) * 0.35;
-
-  const bx = (u0 * 0.64 + u2 * 0.36) * 2 - 1;
-  const by = (u1 * 0.72 + u3 * 0.28) * 2 - 1;
   const limit = OUTER_STAR_NDC_LIMIT;
 
+  const theta = u0 * Math.PI * 2 + Math.sin(u1 * 5.1 + u2 * 2.3) * 0.45;
+  const radial =
+    0.38 + Math.sqrt(u1) * 0.52 + u2 * 0.14 + Math.sin(u3 * 8.7) * 0.06;
+  let r = Math.min(limit, radial * limit);
+
+  let ndcX = r * Math.cos(theta) + Math.sin(u0 * 9.2 + u1 * 6.3) * 0.05;
+  let ndcY = r * Math.sin(theta) + Math.cos(u0 * 4.1 - u1 * 3.7) * 0.04;
+
+  const minR = 0.32 + u3 * 0.28;
+  const mag = Math.hypot(ndcX, ndcY);
+  if (mag > 0.001 && mag < minR) {
+    const push = minR / mag;
+    ndcX *= push;
+    ndcY *= push;
+  }
+
   return [
-    clamp(bx * limit + patch * 0.07, -limit, limit),
-    clamp(by * limit + patch * 0.05, -limit, limit),
+    clamp(ndcX, -limit, limit),
+    clamp(ndcY, -limit, limit),
   ];
 }
 

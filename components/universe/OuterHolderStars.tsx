@@ -1,11 +1,16 @@
 "use client";
 
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { buildDecorativeSkyStars } from "@/lib/universe/buildDecorativeSkyStars";
 import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
 import { LOCATOR_HIGHLIGHT_SCREEN_PX } from "@/lib/universe/screenSpaceLocator";
+import {
+  createHolderWarmStarTexture,
+  HOLDER_SEARCH_WARM,
+  searchBreathFactor,
+} from "@/lib/universe/searchStarVisual";
 import type { DecorativeSkyStar, OuterHolderStar } from "@/types/universe";
 
 function createSkyStarTexture() {
@@ -28,19 +33,20 @@ function createSkyStarTexture() {
 
 type SkyStarLike = DecorativeSkyStar | OuterHolderStar;
 
-function useSkyStarMaterial() {
-  return useMemo(() => {
-    const tex = createSkyStarTexture();
-    return new THREE.MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      opacity: 1,
-      depthWrite: false,
-      depthTest: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    });
-  }, []);
+function useSkyStarMaterial(texture: THREE.CanvasTexture) {
+  return useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    [texture],
+  );
 }
 
 function holderBasePixels(star: OuterHolderStar) {
@@ -94,7 +100,8 @@ function updateHolderInstances(
   time: number,
   highlightIndex: number,
   highlightBlend: number,
-  shimmer: number,
+  highlightActive: boolean,
+  breath: number,
   baseColors: THREE.Color[],
 ) {
   let colorsDirty = false;
@@ -115,12 +122,15 @@ function updateHolderInstances(
     const highlighted = i === highlightIndex && highlightBlend > 0.001;
 
     if (highlighted) {
+      const targetPx =
+        LOCATOR_HIGHLIGHT_SCREEN_PX *
+        (highlightActive ? breath : 1);
       pixels =
-        basePixels +
-        (LOCATOR_HIGHLIGHT_SCREEN_PX - basePixels) * highlightBlend;
+        basePixels + (targetPx - basePixels) * highlightBlend;
+      const targetBright = tierBoost * (highlightActive ? breath : 1);
       brightness =
         baseBrightness +
-        (tierBoost * shimmer - baseBrightness) * highlightBlend;
+        (targetBright - baseBrightness) * highlightBlend;
     } else if (star.twinkles) {
       pixels *=
         0.94 + 0.06 * Math.sin(time * star.twinkleSpeed + star.twinklePhase);
@@ -133,7 +143,10 @@ function updateHolderInstances(
 
     if (mesh.instanceColor && highlightIndex >= 0 && highlightBlend > 0.001) {
       const c = baseColors[i].clone();
-      if (highlighted) c.multiplyScalar(brightness / baseBrightness);
+      if (highlighted) {
+        const warm = HOLDER_SEARCH_WARM.clone().multiplyScalar(brightness);
+        c.lerp(warm, highlightBlend);
+      }
       mesh.setColorAt(i, c);
       colorsDirty = true;
     }
@@ -171,7 +184,10 @@ export default function OuterHolderStars({
   const decoRef = useRef<THREE.InstancedMesh>(null);
   const holderRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const material = useSkyStarMaterial();
+  const skyTexture = useMemo(() => createSkyStarTexture(), []);
+  const warmTexture = useMemo(() => createHolderWarmStarTexture(), []);
+  const material = useSkyStarMaterial(skyTexture);
+  const decoMaterial = useSkyStarMaterial(skyTexture);
   const highlightBlend = useRef(0);
   const baseColors = useRef<THREE.Color[]>([]);
 
@@ -227,7 +243,10 @@ export default function OuterHolderStars({
     const goal = highlightWallet && highlightActive ? 1 : 0;
     highlightBlend.current +=
       (goal - highlightBlend.current) * Math.min(1, dt * 5);
-    const shimmer = 0.9 + 0.1 * Math.sin(time * 2.2);
+    const breath =
+      highlightWallet && highlightActive
+        ? searchBreathFactor(time)
+        : 1;
 
     let highlightIndex = -1;
     if (highlightWallet) {
@@ -250,6 +269,14 @@ export default function OuterHolderStars({
     }
 
     if (holderRef.current) {
+      const highlighting = highlightBlend.current > 0.001;
+      material.map = highlighting ? warmTexture : skyTexture;
+      if (highlighting) {
+        material.color.copy(HOLDER_SEARCH_WARM);
+      } else {
+        material.color.set("#ffffff");
+      }
+
       updateHolderInstances(
         holderRef.current,
         stars,
@@ -260,7 +287,8 @@ export default function OuterHolderStars({
         time,
         highlightIndex,
         highlightBlend.current,
-        shimmer,
+        highlightActive,
+        breath,
         baseColors.current,
       );
     }
@@ -271,7 +299,7 @@ export default function OuterHolderStars({
       {decorative.length > 0 ? (
         <instancedMesh
           ref={decoRef}
-          args={[geometry, material, decorative.length]}
+          args={[geometry, decoMaterial, decorative.length]}
           frustumCulled={false}
           renderOrder={1}
           raycast={() => null}
