@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
   TOP_TIER_LOCATOR_CORE,
@@ -90,13 +90,14 @@ export default function SearchLocator({
   onHighlightDismissed,
 }: SearchLocatorProps) {
   const { camera, size, clock } = useThree();
-  const pingStartMs = useRef(0);
-  const growStartMs = useRef(0);
+  const pingStartMs = useRef(performance.now());
+  const growStartMs = useRef(performance.now());
   const shrinkStartMs = useRef<number | null>(null);
   const shrinkFrom = useRef(1);
   const enlargeRef = useRef(0);
   const wasPersisting = useRef(false);
   const dismissedRef = useRef(false);
+  const highlightPersistRef = useRef(highlightPersist);
   const worldPos = useMemo(() => new THREE.Vector3(), []);
 
   const dimRef = useRef<THREE.Mesh>(null);
@@ -146,13 +147,24 @@ export default function SearchLocator({
     [],
   );
 
-  useEffect(() => {
-    if (!target) return;
-    pingStartMs.current = performance.now();
-    growStartMs.current = performance.now();
+  highlightPersistRef.current = highlightPersist;
+
+  const resetLocatorTimers = () => {
+    const now = performance.now();
+    pingStartMs.current = now;
+    growStartMs.current = now;
     shrinkStartMs.current = null;
     dismissedRef.current = false;
+  };
+
+  useLayoutEffect(() => {
+    if (locatorKey === 0) return;
+    resetLocatorTimers();
     wasPersisting.current = highlightPersist;
+  }, [locatorKey, highlightPersist]);
+
+  useLayoutEffect(() => {
+    if (!target) return;
 
     if (target.kind === "holder") {
       highlightMat.color.set(target.color);
@@ -172,6 +184,7 @@ export default function SearchLocator({
 
   useFrame(() => {
     if (!target) {
+      shrinkStartMs.current = null;
       dimMat.opacity = 0;
       highlightMat.opacity = 0;
       ringMats.forEach((m) => {
@@ -195,7 +208,11 @@ export default function SearchLocator({
           (now - shrinkStartMs.current) / SHRINK_MS,
         );
         enlarge = shrinkFrom.current * (1 - easeInOutCubic(shrinkT));
-        if (shrinkT >= 1 && !dismissedRef.current) {
+        if (
+          shrinkT >= 1 &&
+          !dismissedRef.current &&
+          !highlightPersistRef.current
+        ) {
           dismissedRef.current = true;
           onHighlightDismissed?.();
         }
@@ -205,7 +222,8 @@ export default function SearchLocator({
       }
     } else if (showPing) {
       const growT = Math.min(1, pingElapsedMs / GROW_MS);
-      enlarge = easeOutCubic(growT) * (1 - Math.max(0, (pingElapsedMs - 2600) / 400));
+      enlarge =
+        easeOutCubic(growT) * (1 - Math.max(0, (pingElapsedMs - 2600) / 400));
     }
 
     enlargeRef.current = enlarge;

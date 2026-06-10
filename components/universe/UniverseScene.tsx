@@ -52,6 +52,18 @@ import type {
 const CLICKABLE_STAR_COUNT = countClickableStars(getHolderGroups());
 const PYRE_POSITION: [number, number, number] = [0, 0, 0];
 
+type SearchLocatorState = {
+  key: number;
+  target: LocatorTarget | null;
+  highlightPersist: boolean;
+};
+
+const INITIAL_SEARCH_LOCATOR: SearchLocatorState = {
+  key: 0,
+  target: null,
+  highlightPersist: false,
+};
+
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -309,13 +321,15 @@ export default function UniverseScene() {
     null,
   );
   const [searchNotFound, setSearchNotFound] = useState(false);
-  const [locatorTarget, setLocatorTarget] = useState<LocatorTarget | null>(null);
-  const [locatorKey, setLocatorKey] = useState(0);
-  const [highlightPersist, setHighlightPersist] = useState(false);
+  const [searchLocator, setSearchLocator] = useState<SearchLocatorState>(
+    INITIAL_SEARCH_LOCATOR,
+  );
   const [pyreLocatorKey, setPyreLocatorKey] = useState(0);
 
   const handleHighlightDismissed = useCallback(() => {
-    setLocatorTarget(null);
+    setSearchLocator((prev) =>
+      prev.highlightPersist ? prev : { ...prev, target: null },
+    );
   }, []);
 
   const handleHover = useCallback(
@@ -339,22 +353,23 @@ export default function UniverseScene() {
   const handleSelect = useCallback((group: HolderGroupStar) => {
     setWalletSelection(holderToWalletSelection(group));
     setPyreOpen(false);
-    setHighlightPersist(false);
+    setSearchLocator((prev) => ({ ...prev, highlightPersist: false }));
   }, []);
 
   const handleCoreSelect = useCallback(() => {
     setPyreOpen(true);
     setWalletSelection(null);
-    setHighlightPersist(false);
+    setSearchLocator((prev) => ({ ...prev, highlightPersist: false }));
   }, []);
 
   const handleClosePanel = useCallback(() => {
     setWalletSelection(null);
     setPyreOpen(false);
-    setHighlightPersist(false);
-    setLocatorTarget((current) =>
-      current?.kind === "pyre" ? null : current,
-    );
+    setSearchLocator((prev) => ({
+      ...prev,
+      highlightPersist: false,
+      target: prev.target?.kind === "pyre" ? null : prev.target,
+    }));
   }, []);
 
   const handleEmptyClick = useCallback(() => {
@@ -373,9 +388,11 @@ export default function UniverseScene() {
       const target = locatorFromHolderMatch(match, holderGroups);
       if (!target) return;
 
-      setLocatorTarget(target);
-      setLocatorKey((k) => k + 1);
-      setHighlightPersist(true);
+      setSearchLocator((prev) => ({
+        key: prev.key + 1,
+        target,
+        highlightPersist: true,
+      }));
 
       if (match.kind === "top75") {
         setWalletSelection(holderToWalletSelection(match.star));
@@ -390,8 +407,6 @@ export default function UniverseScene() {
   const handleSearch = useCallback(
     async (query: string) => {
       setSearchNotFound(false);
-      setHighlightPersist(false);
-      setLocatorTarget(null);
 
       const parsed = parseSearchQuery(query);
       if (parsed.type === "invalid") {
@@ -431,10 +446,12 @@ export default function UniverseScene() {
             label: `#${data.tokenId} was burned`,
             position: PYRE_POSITION,
           };
-          setLocatorTarget(pyreTarget);
-          setLocatorKey((k) => k + 1);
+          setSearchLocator((prev) => ({
+            key: prev.key + 1,
+            target: pyreTarget,
+            highlightPersist: false,
+          }));
           setPyreLocatorKey((k) => k + 1);
-          setHighlightPersist(false);
           setWalletSelection(null);
           setPyreOpen(true);
           return;
@@ -482,9 +499,9 @@ export default function UniverseScene() {
                   ?.id ?? null
               : null
           }
-          locatorTarget={locatorTarget}
-          locatorKey={locatorKey}
-          highlightPersist={highlightPersist}
+          locatorTarget={searchLocator.target}
+          locatorKey={searchLocator.key}
+          highlightPersist={searchLocator.highlightPersist}
           pyreLocatorKey={pyreLocatorKey}
           hoveredCore={hoveredCore}
           reducedMotion={reducedMotion}
