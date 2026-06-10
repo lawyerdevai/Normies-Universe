@@ -85,8 +85,6 @@ function armColorByRadius(
 }
 
 const ARM_SWEEP = Math.PI * 3;
-/** Arms end ~30% sooner — still dense at the tip, not trailing into empty space. */
-const ARM_LENGTH_SCALE = 0.7;
 const CORE_RADIUS = 14;
 const MAX_RADIUS = 95;
 
@@ -156,7 +154,7 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
   const perArm = Math.floor(((count * 0.82) / 2) * 2.1);
   const armProfiles = buildArmImperfectionProfiles(ARM_NOISE_SEED);
   const spurParticlesEach = Math.max(22, Math.floor(perArm * 0.028));
-  const armSweep = ARM_SWEEP * ARM_LENGTH_SCALE;
+  const armSweep = ARM_SWEEP;
 
   function pushArmParticle(
     t: number,

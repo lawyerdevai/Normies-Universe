@@ -4,6 +4,15 @@ import { createRng } from "./seededRandom";
 export const ARM_NOISE_SEED = 1;
 
 const DENSITY_BINS = 80;
+const TAIL_START = 0.85;
+
+/** Sharper drop in the outer 15% — arm ends with presence, not a whisper. */
+function armTailDensity(t: number): number {
+  if (t <= TAIL_START) return 1;
+  const u = (t - TAIL_START) / (1 - TAIL_START);
+  const falloff = u * u * u;
+  return Math.max(0, 1 - falloff);
+}
 
 export type ArmClump = {
   center: number;
@@ -48,7 +57,7 @@ export function armDensityAtT(t: number, profile: ArmImperfectionProfile): numbe
     w *= 1 - 0.7 * bump;
   }
 
-  return Math.max(0.05, w);
+  return Math.max(0.05, w * armTailDensity(t));
 }
 
 export function clumpTightness(t: number, profile: ArmImperfectionProfile): number {
