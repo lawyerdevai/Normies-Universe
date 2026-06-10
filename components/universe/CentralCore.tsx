@@ -1,9 +1,11 @@
 "use client";
 
-import { type ThreeEvent, useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { generatePyreParticles } from "@/lib/universe/generatePyre";
+import { generatePyreParticles, PYRE_RX } from "@/lib/universe/generatePyre";
+import { localToWorldPlacement } from "@/lib/universe/holderStarBands";
+import type { HolderGroupStar } from "@/types/universe";
 
 const GALAXY_EULER = new THREE.Euler(0.28, 0.15, 0.35, "XYZ");
 const GALAXY_SCALE = 1.15;
@@ -50,10 +52,25 @@ const fragmentShader = /* glsl */ `
   }
 `;
 
+const _projected = new THREE.Vector3();
+const _edgeProjected = new THREE.Vector3();
+
+function pointerScreenPos(
+  pointer: THREE.Vector2,
+  viewport: { width: number; height: number },
+  canvasRect: DOMRect,
+) {
+  return {
+    x: canvasRect.left + (pointer.x * 0.5 + 0.5) * viewport.width,
+    y: canvasRect.top + (-pointer.y * 0.5 + 0.5) * viewport.height,
+  };
+}
+
 interface CentralCoreProps {
   isHovered: boolean;
   reducedMotion?: boolean;
   debugEnabled?: boolean;
+  starHoverRef?: React.RefObject<HolderGroupStar | null>;
   onHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
 }
 
@@ -61,8 +78,11 @@ export default function CentralCore({
   isHovered,
   reducedMotion = false,
   debugEnabled = true,
+  starHoverRef,
   onHover,
 }: CentralCoreProps) {
+  const { camera, pointer, size, gl } = useThree();
+  const lastPyreHover = useRef(false);
   const pointsRef = useRef<THREE.Points>(null);
   const thunderRef = useRef({
     startTime: -999,
@@ -128,17 +148,6 @@ export default function CentralCore({
     };
   }, [particles]);
 
-  const hitMaterial = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        depthTest: false,
-      }),
-    [],
-  );
-
   useLayoutEffect(() => {
     if (pointsRef.current) {
       pointsRef.current.raycast = () => {};
@@ -154,6 +163,56 @@ export default function CentralCore({
   }
 
   useFrame(({ clock }) => {
+    if (starHoverRef?.current) {
+      if (lastPyreHover.current) {
+        lastPyreHover.current = false;
+        onHover(false);
+      }
+    } else {
+      const px = (pointer.x * 0.5 + 0.5) * size.width;
+      const py = (-pointer.y * 0.5 + 0.5) * size.height;
+
+      const center = localToWorldPlacement(0, 0, 0).position;
+      _projected.set(...center).project(camera);
+      const overPyre =
+        _projected.z <= 1 &&
+        (() => {
+          const cx = (_projected.x * 0.5 + 0.5) * size.width;
+          const cy = (-_projected.y * 0.5 + 0.5) * size.height;
+          const edge = localToWorldPlacement(PYRE_RX, 0, 0).position;
+          _edgeProjected.set(...edge).project(camera);
+          const ex = (_edgeProjected.x * 0.5 + 0.5) * size.width;
+          const ey = (-_edgeProjected.y * 0.5 + 0.5) * size.height;
+          const pyreRadius = Math.hypot(ex - cx, ey - cy);
+          return Math.hypot(px - cx, py - cy) <= pyreRadius;
+        })();
+
+      if (overPyre !== lastPyreHover.current) {
+        lastPyreHover.current = overPyre;
+        if (overPyre) {
+          onHover(
+            true,
+            pointerScreenPos(
+              pointer,
+              size,
+              gl.domElement.getBoundingClientRect(),
+            ),
+          );
+        } else {
+          onHover(false);
+        }
+      } else if (overPyre) {
+        onHover(
+          true,
+          pointerScreenPos(
+            pointer,
+            size,
+            gl.domElement.getBoundingClientRect(),
+          ),
+        );
+      }
+    }
+
     material.uniforms.uHoverBoost.value = isHovered ? 1.1 : 1;
 
     const brightnessAttr = geometry.getAttribute(
@@ -211,15 +270,6 @@ export default function CentralCore({
     flareAttr.needsUpdate = true;
   });
 
-  const handlePointer = (e: ThreeEvent<PointerEvent>, entering: boolean) => {
-    e.stopPropagation();
-    if (entering) {
-      onHover(true, { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY });
-    } else {
-      onHover(false);
-    }
-  };
-
   if (!debugEnabled) return null;
 
   return (
@@ -232,20 +282,6 @@ export default function CentralCore({
         renderOrder={18}
         raycast={() => null}
       />
-      <mesh
-        material={hitMaterial}
-        renderOrder={17}
-        onPointerOver={(e) => handlePointer(e, true)}
-        onPointerMove={(e: ThreeEvent<PointerEvent>) =>
-          onHover(true, {
-            x: e.nativeEvent.clientX,
-            y: e.nativeEvent.clientY,
-          })
-        }
-        onPointerOut={(e) => handlePointer(e, false)}
-      >
-        <sphereGeometry args={[12.5, 12, 12]} />
-      </mesh>
     </group>
   );
 }

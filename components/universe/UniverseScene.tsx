@@ -74,6 +74,7 @@ function SceneContent({
   isMobile,
   controlsRef,
   resetKey,
+  starHoverRef,
   onHover,
   onCoreHover,
   onResetCamera,
@@ -89,6 +90,7 @@ function SceneContent({
   isMobile: boolean;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   resetKey: number;
+  starHoverRef: React.RefObject<HolderGroupStar | null>;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
@@ -126,24 +128,26 @@ function SceneContent({
         pulseKey={pulseKey}
       />
       {layerDebug.cosmicDust ? <CosmicDust /> : null}
-      <CentralCore
-        isHovered={hoveredCore}
-        reducedMotion={reducedMotion}
-        debugEnabled={layerDebug.centralCore}
-        onHover={(hovered, screenPos) => onCoreHover(hovered, screenPos)}
-      />
       <HolderGroupStars
         groups={holderGroups}
         hoveredId={hoveredId}
         pulseWallet={pulseWallet}
         pulseKey={pulseKey}
         reducedMotion={reducedMotion}
+        hoverRef={starHoverRef}
         debugLayers={{
           visible: layerDebug.holderStarVisible,
           glow: layerDebug.holderStarGlow,
           hits: layerDebug.holderStarHits,
         }}
         onHover={onHover}
+      />
+      <CentralCore
+        isHovered={hoveredCore}
+        reducedMotion={reducedMotion}
+        debugEnabled={layerDebug.centralCore}
+        starHoverRef={starHoverRef}
+        onHover={(hovered, screenPos) => onCoreHover(hovered, screenPos)}
       />
 
       <CameraRig
@@ -205,6 +209,7 @@ export default function UniverseScene() {
   const reducedMotion = useReducedMotion();
   const isMobile = useIsMobile();
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  const starHoverRef = useRef<HolderGroupStar | null>(null);
 
   const [holderGroups, setHolderGroups] = useState<HolderGroupStar[]>(() =>
     getHolderGroups(),
@@ -273,15 +278,13 @@ export default function UniverseScene() {
 
   const handleCoreHover = useCallback(
     (hovered: boolean, screenPos?: { x: number; y: number }) => {
+      if (starHoverRef.current) return;
       setHoveredCore(hovered);
-      if (hovered) {
-        setHoveredGroup(null);
-        setTooltipPos(screenPos ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 });
-      } else if (!hoveredGroup) {
-        setTooltipPos(null);
-      }
+      setTooltipPos(
+        hovered ? (screenPos ?? null) : null,
+      );
     },
-    [hoveredGroup],
+    [],
   );
 
   const handleResetCamera = useCallback(() => {
@@ -340,6 +343,7 @@ export default function UniverseScene() {
           isMobile={isMobile}
           controlsRef={controlsRef}
           resetKey={resetKey}
+          starHoverRef={starHoverRef}
           onHover={handleHover}
           onCoreHover={handleCoreHover}
           onResetCamera={handleResetCamera}

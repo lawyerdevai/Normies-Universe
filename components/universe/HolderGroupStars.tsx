@@ -24,6 +24,7 @@ interface HolderGroupStarsProps {
   pulseKey?: number;
   reducedMotion?: boolean;
   debugLayers?: HolderGroupStarsDebugLayers;
+  hoverRef?: React.RefObject<HolderGroupStar | null>;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
@@ -31,6 +32,22 @@ interface HolderGroupStarsProps {
 }
 
 const _projected = new THREE.Vector3();
+const _viewPos = new THREE.Vector3();
+
+/** Screen-pixel radius matching the visible point sprite (core + glow). */
+function visibleStarPixelRadius(
+  visual: HolderStarVisual,
+  position: [number, number, number],
+  camera: THREE.Camera,
+  showGlow: boolean,
+) {
+  _viewPos.set(...position).applyMatrix4(camera.matrixWorldInverse);
+  const z = Math.max(0.1, -_viewPos.z);
+  const worldSize =
+    visual.coreSize + visual.glowSize * visual.glowOpacity * (showGlow ? 1 : 0);
+  const pointSize = Math.min(88, Math.max(3, worldSize * (235 / z)));
+  return pointSize * 0.47;
+}
 
 function pickNearestGroup(
   pointer: THREE.Vector2,
@@ -38,6 +55,7 @@ function pickNearestGroup(
   viewport: { width: number; height: number },
   groups: HolderGroupStar[],
   visuals: HolderStarVisual[],
+  showGlow: boolean,
 ) {
   const px = (pointer.x * 0.5 + 0.5) * viewport.width;
   const py = (-pointer.y * 0.5 + 0.5) * viewport.height;
@@ -52,9 +70,14 @@ function pickNearestGroup(
     const sx = (_projected.x * 0.5 + 0.5) * viewport.width;
     const sy = (-_projected.y * 0.5 + 0.5) * viewport.height;
     const dist = Math.hypot(sx - px, sy - py);
-    const threshold = hitRadiusForVisual(visuals[i]) * 1.15;
+    const hitRadius = visibleStarPixelRadius(
+      visuals[i],
+      groups[i].position,
+      camera,
+      showGlow,
+    );
 
-    if (dist <= threshold && dist < bestDist) {
+    if (dist <= hitRadius && dist < bestDist) {
       bestDist = dist;
       bestIndex = i;
     }
@@ -225,6 +248,7 @@ export default function HolderGroupStars({
   pulseWallet = null,
   pulseKey = 0,
   debugLayers,
+  hoverRef,
   onHover,
 }: HolderGroupStarsProps) {
   const showVisible = debugLayers?.visible ?? true;
@@ -328,6 +352,7 @@ export default function HolderGroupStars({
       pointsRef.current.raycast = () => {};
     }
     if (!hitRef.current) return;
+    hitRef.current.raycast = () => {};
     const normieRange = normieRangeFromStars(groups);
     groups.forEach((group, i) => {
       const visual = starVisual(group, i, normieRange);
@@ -362,7 +387,9 @@ export default function HolderGroupStars({
       size,
       groups,
       visualsRef.current,
+      showGlow,
     );
+    if (hoverRef) hoverRef.current = nearest;
     const nextId = nearest?.id ?? null;
     if (nextId !== lastHoverId.current) {
       lastHoverId.current = nextId;

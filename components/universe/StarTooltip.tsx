@@ -39,7 +39,7 @@ export default function StarTooltip({
       style={{ left: position.x, top: position.y - 12 }}
     >
       <p className="text-xs font-medium tracking-wide text-amber-50/90">
-        Rank #{rank} · {wallet} · {group.totalNormies.toLocaleString()} Normies
+        #{rank} · {wallet} · {group.totalNormies.toLocaleString()} Normies
       </p>
     </div>
   );
