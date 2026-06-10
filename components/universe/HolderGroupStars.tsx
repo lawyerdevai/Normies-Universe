@@ -20,6 +20,7 @@ export type HolderGroupStarsDebugLayers = {
 interface HolderGroupStarsProps {
   groups: HolderGroupStar[];
   hoveredId: string | null;
+  selectedId: string | null;
   pulseWallet?: string | null;
   pulseKey?: number;
   reducedMotion?: boolean;
@@ -29,6 +30,8 @@ interface HolderGroupStarsProps {
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
   ) => void;
+  onSelect: (group: HolderGroupStar) => void;
+  onEmptyClick: () => void;
 }
 
 const _projected = new THREE.Vector3();
@@ -245,11 +248,14 @@ const _scale = new THREE.Vector3();
 export default function HolderGroupStars({
   groups,
   hoveredId,
+  selectedId,
   pulseWallet = null,
   pulseKey = 0,
   debugLayers,
   hoverRef,
   onHover,
+  onSelect,
+  onEmptyClick,
 }: HolderGroupStarsProps) {
   const showVisible = debugLayers?.visible ?? true;
   const showGlow = debugLayers?.glow ?? true;
@@ -261,6 +267,7 @@ export default function HolderGroupStars({
   const lastHoverId = useRef<string | null>(null);
   const visualsRef = useRef<HolderStarVisual[]>([]);
   const hoveredIndex = groups.findIndex((g) => g.id === hoveredId);
+  const selectedIndex = groups.findIndex((g) => g.id === selectedId);
 
   const hitGeometry = useMemo(() => new THREE.SphereGeometry(1, 8, 8), []);
 
@@ -366,6 +373,38 @@ export default function HolderGroupStars({
     hitRef.current.computeBoundingSphere();
   }, [groups, showHits]);
 
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const handleClick = () => {
+      const nearest = pickNearestGroup(
+        pointer,
+        camera,
+        size,
+        groups,
+        visualsRef.current,
+        showGlow,
+      );
+      if (nearest) {
+        onSelect(nearest);
+      } else {
+        onEmptyClick();
+      }
+    };
+
+    canvas.addEventListener("click", handleClick);
+    return () => canvas.removeEventListener("click", handleClick);
+  }, [
+    gl,
+    pointer,
+    camera,
+    size,
+    groups,
+    showGlow,
+    onSelect,
+    onEmptyClick,
+  ]);
+
   useLayoutEffect(() => {
     if (!pulseWallet) return;
     const idx = groups.findIndex(
@@ -379,7 +418,7 @@ export default function HolderGroupStars({
   useFrame(() => {
     if (!pointsRef.current) return;
     material.uniforms.uHoveredIndex.value = hoveredIndex;
-    material.uniforms.uSelectedIndex.value = -1;
+    material.uniforms.uSelectedIndex.value = selectedIndex;
 
     const nearest = pickNearestGroup(
       pointer,

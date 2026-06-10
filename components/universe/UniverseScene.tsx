@@ -17,6 +17,7 @@ import OuterHolderStars from "@/components/universe/OuterHolderStars";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
 import SearchBar from "@/components/ui/SearchBar";
+import WalletDetailPanel from "@/components/ui/WalletDetailPanel";
 import {
   DEFAULT_CAMERA_FOV,
   DEFAULT_CAMERA_NEAR,
@@ -74,8 +75,11 @@ function SceneContent({
   isMobile,
   controlsRef,
   resetKey,
+  selectedId,
   starHoverRef,
   onHover,
+  onSelect,
+  onEmptyClick,
   onCoreHover,
   onResetCamera,
 }: {
@@ -90,11 +94,14 @@ function SceneContent({
   isMobile: boolean;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   resetKey: number;
+  selectedId: string | null;
   starHoverRef: React.RefObject<HolderGroupStar | null>;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
   ) => void;
+  onSelect: (group: HolderGroupStar) => void;
+  onEmptyClick: () => void;
   onCoreHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
   onResetCamera: () => void;
 }) {
@@ -131,6 +138,7 @@ function SceneContent({
       <HolderGroupStars
         groups={holderGroups}
         hoveredId={hoveredId}
+        selectedId={selectedId}
         pulseWallet={pulseWallet}
         pulseKey={pulseKey}
         reducedMotion={reducedMotion}
@@ -141,6 +149,8 @@ function SceneContent({
           hits: layerDebug.holderStarHits,
         }}
         onHover={onHover}
+        onSelect={onSelect}
+        onEmptyClick={onEmptyClick}
       />
       <CentralCore
         isHovered={hoveredCore}
@@ -253,6 +263,9 @@ export default function UniverseScene() {
   }, []);
 
   const [hoveredGroup, setHoveredGroup] = useState<HolderGroupStar | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<HolderGroupStar | null>(
+    null,
+  );
   const [hoveredCore, setHoveredCore] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
@@ -286,6 +299,14 @@ export default function UniverseScene() {
     },
     [],
   );
+
+  const handleSelect = useCallback((group: HolderGroupStar) => {
+    setSelectedGroup(group);
+  }, []);
+
+  const handleClosePanel = useCallback(() => {
+    setSelectedGroup(null);
+  }, []);
 
   const handleResetCamera = useCallback(() => {
     setSearchTarget(null);
@@ -335,6 +356,7 @@ export default function UniverseScene() {
           holderGroups={holderGroups}
           outerStars={outerStars}
           hoveredId={hoveredGroup?.id ?? null}
+          selectedId={selectedGroup?.id ?? null}
           pulseWallet={pulseWallet}
           pulseKey={pulseKey}
           hoveredCore={hoveredCore}
@@ -345,6 +367,8 @@ export default function UniverseScene() {
           resetKey={resetKey}
           starHoverRef={starHoverRef}
           onHover={handleHover}
+          onSelect={handleSelect}
+          onEmptyClick={handleClosePanel}
           onCoreHover={handleCoreHover}
           onResetCamera={handleResetCamera}
         />
@@ -366,6 +390,12 @@ export default function UniverseScene() {
         group={hoveredGroup}
         showCore={hoveredCore}
         position={tooltipPos}
+      />
+
+      <WalletDetailPanel
+        group={selectedGroup}
+        open={selectedGroup !== null}
+        onClose={handleClosePanel}
       />
     </div>
   );
