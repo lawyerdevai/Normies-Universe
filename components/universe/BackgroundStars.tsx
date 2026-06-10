@@ -6,9 +6,9 @@ import * as THREE from "three";
 import { createRng } from "@/lib/universe/seededRandom";
 
 const LAYERS = [
-  { count: 9000, seed: 88001, size: [0.09, 0.32] as [number, number], brightness: [0.05, 0.16] as [number, number], spread: 1.4 },
-  { count: 2800, seed: 88002, size: [0.22, 0.6] as [number, number], brightness: [0.12, 0.32] as [number, number], spread: 1.0 },
-  { count: 900, seed: 88003, size: [0.5, 1.2] as [number, number], brightness: [0.24, 0.64] as [number, number], spread: 0.65 },
+  { count: 9000, seed: 88001, size: [0.09, 0.32] as [number, number], brightness: [0.1, 0.32] as [number, number], spread: 1.4 },
+  { count: 2800, seed: 88002, size: [0.22, 0.6] as [number, number], brightness: [0.24, 0.64] as [number, number], spread: 1.0 },
+  { count: 900, seed: 88003, size: [0.5, 1.2] as [number, number], brightness: [0.48, 1.28] as [number, number], spread: 0.65 },
 ];
 
 const vertexShader = /* glsl */ `
@@ -96,7 +96,7 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
         brightness[idx] = bright;
         baseBrightness[idx] = bright;
 
-        if (rng() < 0.08) {
+        if (rng() < 0.1) {
           twinkleEnabled[idx] = 1;
           phases[idx] = rng() * Math.PI * 2;
           const period = 2 + rng();
@@ -163,7 +163,7 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
       if (!twinkleOn[i]) continue;
       const wave = Math.sin(t * speeds[i] + phases[i]);
       const lift = Math.max(0, wave);
-      const next = baseBrightness[i] * (1.0 + lift * 0.25);
+      const next = baseBrightness[i] * (1.0 + lift * 0.5);
       if (attr.getX(i) !== next) {
         attr.setX(i, next);
         dirty = true;

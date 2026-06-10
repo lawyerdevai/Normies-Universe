@@ -63,7 +63,10 @@ function updateSkyInstances(
   camQuat: THREE.Quaternion,
   dummy: THREE.Object3D,
   time: number,
+  baseColors: THREE.Color[],
 ) {
+  let colorsDirty = false;
+
   for (let i = 0; i < stars.length; i++) {
     const star = stars[i];
     const [x, y, z] = star.position;
@@ -77,10 +80,17 @@ function updateSkyInstances(
       pixels *= 1.08;
     }
 
-    if (star.twinkles) {
-      const wave = Math.sin(time * star.twinkleSpeed + star.twinklePhase);
-      const lift = Math.max(0, wave);
-      pixels *= 1.0 + lift * 0.18;
+    if (mesh.instanceColor && baseColors[i]) {
+      if (star.twinkles) {
+        const wave = Math.sin(time * star.twinkleSpeed + star.twinklePhase);
+        const lift = Math.max(0, wave);
+        const c = baseColors[i].clone().multiplyScalar(1.0 + lift * 0.5);
+        mesh.setColorAt(i, c);
+        colorsDirty = true;
+      } else {
+        mesh.setColorAt(i, baseColors[i]);
+        colorsDirty = true;
+      }
     }
 
     const worldSize = pixels * pixelWorld * dist;
@@ -88,7 +98,11 @@ function updateSkyInstances(
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
   }
+
   mesh.instanceMatrix.needsUpdate = true;
+  if (colorsDirty && mesh.instanceColor) {
+    mesh.instanceColor.needsUpdate = true;
+  }
 }
 
 function updateHolderInstances(
@@ -192,6 +206,7 @@ export default function OuterHolderStars({
   const decoMaterial = useSkyStarMaterial(skyTexture);
   const highlightBlend = useRef(0);
   const baseColors = useRef<THREE.Color[]>([]);
+  const baseDecoColors = useRef<THREE.Color[]>([]);
 
   const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
@@ -199,11 +214,12 @@ export default function OuterHolderStars({
     const mesh = decoRef.current;
     if (!mesh) return;
     mesh.count = decorative.length;
-    decorative.forEach((star, i) => {
+    baseDecoColors.current = decorative.map((star) => {
       const c = new THREE.Color(star.color[0], star.color[1], star.color[2]);
       c.multiplyScalar(star.opacity);
-      mesh.setColorAt(i, c);
+      return c;
     });
+    baseDecoColors.current.forEach((c, i) => mesh.setColorAt(i, c));
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.raycast = () => {};
   }, [decorative]);
@@ -267,6 +283,7 @@ export default function OuterHolderStars({
         camQuat,
         dummy,
         time,
+        baseDecoColors.current,
       );
     }
 

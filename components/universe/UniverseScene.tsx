@@ -99,6 +99,20 @@ function outerToWalletSelection(star: OuterHolderStar): WalletSelection {
   };
 }
 
+function searchedStarIndex(
+  groups: HolderGroupStar[],
+  foundStar: FoundStarState | null,
+): number {
+  if (!foundStar?.active) return -1;
+  const [fx, fy, fz] = foundStar.position;
+  return groups.findIndex(
+    (g) =>
+      Math.abs(g.position[0] - fx) < 0.01 &&
+      Math.abs(g.position[1] - fy) < 0.01 &&
+      Math.abs(g.position[2] - fz) < 0.01,
+  );
+}
+
 function SceneContent({
   holderGroups,
   outerStars,
@@ -185,6 +199,7 @@ function SceneContent({
         groups={holderGroups}
         hoveredId={hoveredId}
         selectedId={selectedId}
+        glintExcludeIndex={searchedStarIndex(holderGroups, foundStar)}
         reducedMotion={reducedMotion}
         hoverRef={starHoverRef}
         debugLayers={{

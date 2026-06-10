@@ -23,6 +23,7 @@ interface HolderGroupStarsProps {
   groups: HolderGroupStar[];
   hoveredId: string | null;
   selectedId: string | null;
+  glintExcludeIndex?: number;
   reducedMotion?: boolean;
   debugLayers?: HolderGroupStarsDebugLayers;
   hoverRef?: React.RefObject<HolderGroupStar | null>;
@@ -170,13 +171,14 @@ const _scale = new THREE.Vector3();
 
 function ambientGlintEnvelope(age: number): number {
   if (age < 0 || age >= 1.5) return 0;
-  return Math.sin((age / 1.5) * Math.PI) * 0.07;
+  return Math.sin((age / 1.5) * Math.PI) * 0.4;
 }
 
 export default function HolderGroupStars({
   groups,
   hoveredId,
   selectedId,
+  glintExcludeIndex = -1,
   reducedMotion = false,
   debugLayers,
   hoverRef,
@@ -198,7 +200,7 @@ export default function HolderGroupStars({
   const glintRef = useRef({
     index: -1,
     startTime: -999,
-    nextAt: 4 + Math.random() * 3,
+    nextAt: 3 + Math.random() * 2,
   });
 
   const hitGeometry = useMemo(() => new THREE.SphereGeometry(1, 8, 8), []);
@@ -341,15 +343,17 @@ export default function HolderGroupStars({
         if (groups.length > 1) {
           let guard = 0;
           while (
-            (idx === hoveredIndex || idx === selectedIndex) &&
-            guard++ < 8
+            (idx === hoveredIndex ||
+              idx === selectedIndex ||
+              idx === glintExcludeIndex) &&
+            guard++ < 12
           ) {
             idx = Math.floor(Math.random() * groups.length);
           }
         }
         glint.index = idx;
         glint.startTime = t;
-        glint.nextAt = t + 3.5 + Math.random() * 4;
+        glint.nextAt = t + 3 + Math.random() * 2;
       }
 
       const age = t - glint.startTime;
