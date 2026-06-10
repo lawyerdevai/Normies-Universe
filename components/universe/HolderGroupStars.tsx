@@ -169,9 +169,10 @@ const _matrix = new THREE.Matrix4();
 const _position = new THREE.Vector3();
 const _scale = new THREE.Vector3();
 
-function ambientGlintEnvelope(age: number): number {
-  if (age < 0 || age >= 1.5) return 0;
-  return Math.sin((age / 1.5) * Math.PI) * 0.4;
+function ambientGlintEnvelope(age: number): { bright: number; size: number } {
+  if (age < 0 || age >= 1.5) return { bright: 0, size: 0 };
+  const peak = Math.sin((age / 1.5) * Math.PI);
+  return { bright: peak * 0.4, size: peak * 0.3 };
 }
 
 export default function HolderGroupStars({
@@ -334,7 +335,7 @@ export default function HolderGroupStars({
     material.uniforms.uHoveredIndex.value = hoveredIndex;
     material.uniforms.uSelectedIndex.value = selectedIndex;
 
-    if (!reducedMotion && groups.length > 0) {
+    if (groups.length > 0) {
       const t = clock.elapsedTime;
       const glint = glintRef.current;
 
@@ -354,14 +355,19 @@ export default function HolderGroupStars({
         glint.index = idx;
         glint.startTime = t;
         glint.nextAt = t + 3 + Math.random() * 2;
+        const label = groups[idx].collectionRank ?? idx + 1;
+        console.log(`[glint] star #${label}`);
       }
 
       const age = t - glint.startTime;
+      const env = ambientGlintEnvelope(age);
       material.uniforms.uGlintIndex.value = glint.index;
-      material.uniforms.uGlintBoost.value = ambientGlintEnvelope(age);
+      material.uniforms.uGlintBoost.value = env.bright;
+      material.uniforms.uGlintSizeBoost.value = env.size;
     } else {
       material.uniforms.uGlintIndex.value = -1;
       material.uniforms.uGlintBoost.value = 0;
+      material.uniforms.uGlintSizeBoost.value = 0;
     }
 
     const nearest = pickNearestGroup(

@@ -12,6 +12,7 @@ export const HOLDER_STAR_VERTEX_SHADER = /* glsl */ `
   uniform int uSelectedIndex;
   uniform int uGlintIndex;
   uniform float uGlintBoost;
+  uniform float uGlintSizeBoost;
   varying float vBrightness;
   varying float vGlow;
   varying float vSparkle;
@@ -28,7 +29,7 @@ export const HOLDER_STAR_VERTEX_SHADER = /* glsl */ `
     float glinted = float(gl_VertexID == uGlintIndex);
     vBrightness = aBrightness * (1.0 + hovered * 0.14 + selected * 0.05 + glinted * uGlintBoost);
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    float size = (aCoreSize + aGlowSize * vGlow * uShowGlow) * (1.0 + hovered * 0.06 + selected * 0.03);
+    float size = (aCoreSize + aGlowSize * vGlow * uShowGlow) * (1.0 + hovered * 0.06 + selected * 0.03 + glinted * uGlintSizeBoost);
     float pixelSize = size * (235.0 / -mvPosition.z);
     gl_PointSize = clamp(pixelSize, 3.0, 88.0);
     gl_Position = projectionMatrix * mvPosition;
@@ -85,6 +86,7 @@ export function createHolderStarPointMaterial(showGlow = true) {
       uSelectedIndex: { value: -1 },
       uGlintIndex: { value: -1 },
       uGlintBoost: { value: 0 },
+      uGlintSizeBoost: { value: 0 },
     },
     vertexShader: HOLDER_STAR_VERTEX_SHADER,
     fragmentShader: HOLDER_STAR_FRAGMENT_SHADER,
