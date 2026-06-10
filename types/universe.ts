@@ -27,19 +27,28 @@ export type AmbientStar = {
   color: string;
 };
 
-export type OuterHolderStar = {
-  id: string;
-  wallet: string;
-  walletDisplay: string;
-  collectionRank: number;
-  normieCount: number;
+export type SkyStarBase = {
   position: [number, number, number];
-  distanceFromCenter: number;
   screenPixels: number;
   opacity: number;
   color: [number, number, number];
   twinklePhase: number;
   twinkleSpeed: number;
+  twinkles: boolean;
+  tier: 0 | 1 | 2 | 3;
+};
+
+export type DecorativeSkyStar = SkyStarBase & {
+  id: string;
+};
+
+export type OuterHolderStar = SkyStarBase & {
+  id: string;
+  wallet: string;
+  walletDisplay: string;
+  collectionRank: number;
+  normieCount: number;
+  distanceFromCenter: number;
 };
 
 export type CameraTarget =

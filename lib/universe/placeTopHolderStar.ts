@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import { PYRE_RX, PYRE_RY, PYRE_RZ } from "./generatePyre";
 import type { StarPlacement } from "./generateStarPositions";
-import { clamp01, createRng, gaussian, lerp } from "./seededRandom";
+import { scatterForRank } from "./holderStarScatter";
+import { createRng, gaussian, lerp } from "./seededRandom";
+
+export { PLACEMENT_SEED } from "./holderStarScatter";
 
 const ARM_SWEEP = Math.PI * 3;
 const CORE_RADIUS = 14;
@@ -36,26 +39,9 @@ function ringForRank(rank: number): RankRing {
   return { tMin: 0.617, tMax: 0.93, count: 25, index0: 51 };
 }
 
-function rankTInRing(rank: number, ring: RankRing) {
-  return clamp01((rank - ring.index0) / Math.max(1, ring.count - 1));
-}
-
 function angleDistance(a: number, b: number) {
   const d = Math.abs(a - b) % (Math.PI * 2);
   return Math.min(d, Math.PI * 2 - d);
-}
-
-/** Full 360° sector per rank + wallet-hash offset for organic scatter. */
-function angleForPlacement(rank: number, ring: RankRing, seed: string, rng: () => number) {
-  const tierIndex = rank - ring.index0;
-  const sector = (Math.PI * 2) / ring.count;
-  const sectorCenter = tierIndex * sector + sector * 0.5;
-
-  const hash = hashSeed(seed);
-  const walletT = (hash % 100000) / 100000;
-  const walletOffset = (walletT - 0.5) * sector * 0.85;
-
-  return sectorCenter + walletOffset + gaussian(rng) * sector * 0.08;
 }
 
 type PlacementMode = "onArm" | "gap" | "fringe";
@@ -96,14 +82,12 @@ export function placeTopHolderStar(
   const hash = hashSeed(seed);
   const rng = createRng(hash + rank * 1597);
   const ring = ringForRank(rank);
-  const rankT = rankTInRing(rank, ring);
+  const bandScatter = scatterForRank(rank);
 
-  const walletJitter = ((hash >> 4) % 1000) / 1000;
-  const slotT = clamp01(rankT * 0.86 + walletJitter * 0.1 + rng() * 0.04);
-  const armT = lerp(ring.tMin, ring.tMax, slotT);
+  const armT = lerp(ring.tMin, ring.tMax, bandScatter.slotT);
   const r = CORE_RADIUS * Math.exp(SPIRAL_K * armT * ARM_SWEEP);
 
-  let angle = angleForPlacement(rank, ring, seed, rng) + angleOffset;
+  let angle = bandScatter.angle + angleOffset;
   const mode = placementMode(hash);
 
   const armWidth = (1.1 + (1 - armT) * 2.6) * Math.exp(-r / 88);

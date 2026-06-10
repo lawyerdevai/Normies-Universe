@@ -10,8 +10,10 @@ export {
   normieRangeFromStars,
   hitRadiusForVisual,
 } from "./holderStarVisual";
-export { placeTopHolderStar } from "./placeTopHolderStar";
+export { placeTopHolderStar, PLACEMENT_SEED } from "./placeTopHolderStar";
+export { scatterForRank } from "./holderStarScatter";
 export { resolveHolderStarSpacing } from "./resolveHolderStarSpacing";
 export { buildOuterHolderStars } from "./buildOuterHolderStars";
+export { buildDecorativeSkyStars } from "./buildDecorativeSkyStars";
 export { placeOuterHolderStar } from "./placeOuterHolderStar";
 export { findHolderByWallet } from "./searchHolderStars";
