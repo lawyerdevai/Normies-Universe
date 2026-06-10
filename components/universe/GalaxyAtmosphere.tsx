@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { ARM_NOISE_SEED } from "@/lib/universe/armDensityNoise";
 import { generateGalaxyAtmosphere } from "@/lib/universe/generateGalaxyAtmosphere";
 
 const vertexShader = /* glsl */ `
@@ -91,7 +92,7 @@ export default function GalaxyAtmosphere({
     });
 
     return { geometry, material };
-  }, [showArms, showBulge, showHalo]);
+  }, [showArms, showBulge, showHalo, ARM_NOISE_SEED]);
 
   useLayoutEffect(() => {
     if (pointsRef.current) {

@@ -1,3 +1,9 @@
+import {
+  ARM_NOISE_SEED,
+  buildArmImperfectionProfiles,
+  clumpTightness,
+  createArmTSampler,
+} from "./armDensityNoise";
 import { createRng, gaussian } from "./seededRandom";
 
 export type AtmosphereParticle = {
@@ -79,6 +85,8 @@ function armColorByRadius(
 }
 
 const ARM_SWEEP = Math.PI * 3;
+/** Arms end ~30% sooner — still dense at the tip, not trailing into empty space. */
+const ARM_LENGTH_SCALE = 0.7;
 const CORE_RADIUS = 14;
 const MAX_RADIUS = 95;
 
@@ -144,39 +152,108 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
     bulgeAdded++;
   }
 
-  // Two spiral arms — monochromatic cloud clusters
+  // Two spiral arms — uneven density (clumps, gaps, spurs, asymmetry)
   const perArm = Math.floor(((count * 0.82) / 2) * 2.1);
+  const armProfiles = buildArmImperfectionProfiles(ARM_NOISE_SEED);
+  const spurParticlesEach = Math.max(22, Math.floor(perArm * 0.028));
+  const armSweep = ARM_SWEEP * ARM_LENGTH_SCALE;
+
+  function pushArmParticle(
+    t: number,
+    theta: number,
+    r: number,
+    armWidth: number,
+    brightnessScale: number,
+  ) {
+    const perp = theta + Math.PI / 2;
+    const scatter = gaussian(rng) * armWidth;
+    const spineDist = Math.abs(scatter) / armWidth;
+    const spineWeight = Math.exp(-spineDist * spineDist * 2.1);
+
+    const x = r * Math.cos(theta) + Math.cos(perp) * scatter;
+    const z = r * Math.sin(theta) + Math.sin(perp) * scatter;
+    const y = gaussian(rng) * (1.5 + (1 - t) * 2);
+    const coreProx = Math.exp(-t * 2.5);
+
+    const baseBright =
+      (0.08 + coreProx * 0.35 + (1 - t) * 0.12) * (0.6 + rng() * 0.4);
+
+    particles.push({
+      position: [x, y, z],
+      size: 0.3 + coreProx * 1.4 + (1 - t) * 0.5 + rng() * 0.4,
+      brightness:
+        baseBright *
+        (0.6 + spineWeight * 0.7) *
+        3.0 *
+        brightnessScale *
+        radialBrightnessWeight(x, z),
+      color: armColorByRadius(r, rng),
+      isCore: false,
+    });
+  }
+
   for (let arm = 0; arm < 2; arm++) {
+    const profile = armProfiles[arm];
+    const sampleT = createArmTSampler(profile);
     const startAngle = arm * Math.PI;
-    for (let i = 0; i < perArm; i++) {
-      const t = i / perArm;
-      const theta = startAngle + t * ARM_SWEEP;
+    const spurBudget = profile.spurs.length * spurParticlesEach;
+    const mainTarget = perArm - spurBudget;
+
+    for (let i = 0; i < mainTarget; i++) {
+      const t = sampleT(rng);
+      const theta = startAngle + t * armSweep;
       const r = CORE_RADIUS * Math.exp(k * (theta - startAngle));
-      const armWidth = (2 + (1 - t) * 5) * Math.exp(-r / 80);
-      const perp = theta + Math.PI / 2;
-      const scatter = gaussian(rng) * armWidth;
-      const spineDist = Math.abs(scatter) / armWidth;
-      const spineWeight = Math.exp(-spineDist * spineDist * 2.1);
+      const armWidth =
+        (2 + (1 - t) * 5) *
+        Math.exp(-r / 80) *
+        clumpTightness(t, profile);
 
-      const x = r * Math.cos(theta) + Math.cos(perp) * scatter;
-      const z = r * Math.sin(theta) + Math.sin(perp) * scatter;
-      const y = gaussian(rng) * (1.5 + (1 - t) * 2);
-      const coreProx = Math.exp(-t * 2.5);
+      pushArmParticle(t, theta, r, armWidth, 1);
+    }
 
-      const baseBright =
-        (0.08 + coreProx * 0.35 + (1 - t) * 0.12) * (0.6 + rng() * 0.4);
+    for (const spur of profile.spurs) {
+      const t0 = spur.startT;
+      const theta0 = startAngle + t0 * armSweep;
+      const r0 = CORE_RADIUS * Math.exp(k * (theta0 - startAngle));
+      const armWidth0 =
+        (2 + (1 - t0) * 5) * Math.exp(-r0 / 80) * clumpTightness(t0, profile);
+      const tangent = theta0 + spur.side * (Math.PI / 6);
 
-      particles.push({
-        position: [x, y, z],
-        size: 0.3 + coreProx * 1.4 + (1 - t) * 0.5 + rng() * 0.4,
-        brightness:
-          baseBright *
-          (0.6 + spineWeight * 0.7) *
-          3.0 *
-          radialBrightnessWeight(x, z),
-        color: armColorByRadius(r, rng),
-        isCore: false,
-      });
+      for (let s = 0; s < spurParticlesEach; s++) {
+        const spurU = (s + rng() * 0.4) / spurParticlesEach;
+        const fade = 1 - spurU;
+        const alongT = spurU * spur.lengthT;
+        const theta = startAngle + (t0 + alongT) * armSweep;
+        const r = CORE_RADIUS * Math.exp(k * (theta - startAngle));
+        const lateral = spurU * armWidth0 * 2.8 * spur.side;
+        const x =
+          r * Math.cos(theta) +
+          Math.cos(tangent) * lateral +
+          gaussian(rng) * armWidth0 * 0.18 * fade;
+        const z =
+          r * Math.sin(theta) +
+          Math.sin(tangent) * lateral +
+          gaussian(rng) * armWidth0 * 0.18 * fade;
+        const y = gaussian(rng) * (1.2 + (1 - t0) * 1.6) * fade;
+        const coreProx = Math.exp(-t0 * 2.5);
+
+        const baseBright =
+          (0.08 + coreProx * 0.35 + (1 - t0) * 0.12) *
+          (0.6 + rng() * 0.4) *
+          fade *
+          0.55;
+
+        particles.push({
+          position: [x, y, z],
+          size:
+            (0.3 + coreProx * 1.4 + (1 - t0) * 0.5 + rng() * 0.4) *
+            (0.7 + fade * 0.2),
+          brightness:
+            baseBright * (0.5 + fade * 0.18) * 3.0 * radialBrightnessWeight(x, z),
+          color: armColorByRadius(r, rng),
+          isCore: false,
+        });
+      }
     }
   }
 
