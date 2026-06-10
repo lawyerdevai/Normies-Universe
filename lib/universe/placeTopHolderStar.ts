@@ -27,12 +27,12 @@ type RankRing = {
   index0: number;
 };
 
-/** Rank → galactic ring band (always inside the arm structure). */
+/** Rank → galactic ring band — spans Pyre to outer arm tips. */
 function ringForRank(rank: number): RankRing {
   if (rank <= 5) return { tMin: 0.05, tMax: 0.17, count: 5, index0: 1 };
-  if (rank <= 20) return { tMin: 0.14, tMax: 0.3, count: 15, index0: 6 };
-  if (rank <= 45) return { tMin: 0.26, tMax: 0.46, count: 25, index0: 21 };
-  return { tMin: 0.43, tMax: 0.6, count: 30, index0: 46 };
+  if (rank <= 20) return { tMin: 0.18, tMax: 0.34, count: 15, index0: 6 };
+  if (rank <= 45) return { tMin: 0.3, tMax: 0.56, count: 25, index0: 21 };
+  return { tMin: 0.48, tMax: 0.93, count: 30, index0: 46 };
 }
 
 function rankTInRing(rank: number, ring: RankRing) {
