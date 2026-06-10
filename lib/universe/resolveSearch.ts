@@ -64,17 +64,36 @@ export function locatorFromHolderMatch(
     };
   }
 
+  if (match.kind === "outer") {
+    const star = match.star;
+    return {
+      kind: "holder",
+      starKind: "outer",
+      wallet: normalizeWalletAddress(star.wallet ?? star.id),
+      walletDisplay: star.walletDisplay,
+      normieCount: star.normieCount,
+      rank: star.collectionRank,
+      position: star.position,
+      baseScreenPixels: star.screenPixels,
+      color: `rgb(${Math.round(star.color[0] * 255)}, ${Math.round(star.color[1] * 255)}, ${Math.round(star.color[2] * 255)})`,
+    };
+  }
+
   const star = match.star;
   return {
     kind: "holder",
-    starKind: "outer",
-    wallet: normalizeWalletAddress(star.wallet ?? star.id),
+    starKind: "burner",
+    wallet: normalizeWalletAddress(star.wallet),
     walletDisplay: star.walletDisplay,
     normieCount: star.normieCount,
     rank: star.collectionRank,
     position: star.position,
-    baseScreenPixels: star.screenPixels,
-    color: `rgb(${Math.round(star.color[0] * 255)}, ${Math.round(star.color[1] * 255)}, ${Math.round(star.color[2] * 255)})`,
+    baseCoreSize: star.coreSize,
+    baseGlowSize: star.glowSize,
+    baseGlowOpacity: star.glowOpacity,
+    baseBrightness: star.brightness,
+    baseSparkle: star.sparkle,
+    color: star.color,
   };
 }
 

@@ -562,13 +562,17 @@ export default function UniverseScene() {
           active: true,
         });
         setWalletSelection(holderToWalletSelection(match.star));
-      } else {
+      } else if (match.kind === "outer") {
         setFoundStar(null);
         setOuterHighlight({
           wallet: normalizeWalletAddress(match.star.wallet ?? match.star.id),
           active: true,
         });
         setWalletSelection(outerToWalletSelection(match.star));
+      } else {
+        setFoundStar(null);
+        setOuterHighlight(null);
+        setWalletSelection(burnerToWalletSelection(match.star));
       }
       setPyreOpen(false);
       setPyreSearchedBurn(null);
@@ -591,6 +595,7 @@ export default function UniverseScene() {
           parsed.address,
           holderGroups,
           outerStars,
+          burnerStars,
         );
         if (!match) {
           setSearchNotFound(true);
@@ -627,6 +632,7 @@ export default function UniverseScene() {
           normalizeWalletAddress(data.owner),
           holderGroups,
           outerStars,
+          burnerStars,
         );
         if (!match) {
           setSearchNotFound(true);
@@ -637,7 +643,13 @@ export default function UniverseScene() {
         setSearchNotFound(true);
       }
     },
-    [holderGroups, outerStars, activateHolderSearch, deactivateSearchHighlights],
+    [
+      holderGroups,
+      outerStars,
+      burnerStars,
+      activateHolderSearch,
+      deactivateSearchHighlights,
+    ],
   );
 
   return (
