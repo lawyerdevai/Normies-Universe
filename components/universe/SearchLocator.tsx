@@ -4,20 +4,24 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
-  OUTER_LOCATOR_SCREEN_PX,
-  TOP75_LOCATOR_SCALE,
+  TOP_TIER_LOCATOR_CORE,
+  TOP_TIER_LOCATOR_GLOW,
+  TOP_TIER_LOCATOR_GLOW_OPACITY,
 } from "@/lib/universe/resolveSearch";
 import type { LocatorTarget } from "@/types/universe";
 
 const DIM_IN_MS = 300;
-const ANIM_MS = 3000;
+const PING_MS = 3000;
 const PULSE_COUNT = 3;
 const PULSE_DURATION = 0.85;
+const GROW_MS = 400;
+const SHRINK_MS = 450;
 
 interface SearchLocatorProps {
   target: LocatorTarget | null;
   locatorKey: number;
-  onScreenPos: (pos: { x: number; y: number } | null) => void;
+  highlightPersist: boolean;
+  onHighlightDismissed?: () => void;
 }
 
 function createStarTexture() {
@@ -42,21 +46,16 @@ function easeOutCubic(t: number) {
   return 1 - (1 - t) ** 3;
 }
 
+function easeInOutCubic(t: number) {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
 function dimOpacity(elapsedMs: number): number {
   const fadeIn = Math.min(1, elapsedMs / DIM_IN_MS);
-  const holdEnd = ANIM_MS - DIM_IN_MS;
+  const holdEnd = PING_MS - DIM_IN_MS;
   if (elapsedMs <= holdEnd) return easeOutCubic(fadeIn) * 0.6;
   const fadeOut = (elapsedMs - holdEnd) / DIM_IN_MS;
   return (1 - easeOutCubic(Math.min(1, fadeOut))) * 0.6;
-}
-
-function enlargeFactor(elapsedMs: number): number {
-  const growEnd = 400;
-  const shrinkStart = 2600;
-  if (elapsedMs < growEnd) return easeOutCubic(elapsedMs / growEnd);
-  if (elapsedMs < shrinkStart) return 1;
-  const shrink = (elapsedMs - shrinkStart) / 400;
-  return 1 - easeOutCubic(Math.min(1, shrink));
 }
 
 function pulseStrength(elapsedSec: number, pulseIndex: number): number {
@@ -66,14 +65,38 @@ function pulseStrength(elapsedSec: number, pulseIndex: number): number {
   return (1 - t) * (1 - t) * 0.95;
 }
 
+function topTierWorldSize(
+  position: THREE.Vector3,
+  camera: THREE.Camera,
+  size: { height: number },
+) {
+  const persp = camera as THREE.PerspectiveCamera;
+  const dist = position.distanceTo(camera.position);
+  const pixelWorld = (2 * Math.tan((persp.fov * Math.PI) / 360)) / size.height;
+  const baseWorld =
+    TOP_TIER_LOCATOR_CORE +
+    TOP_TIER_LOCATOR_GLOW * TOP_TIER_LOCATOR_GLOW_OPACITY;
+  const z = Math.max(
+    0.1,
+    -position.clone().applyMatrix4(camera.matrixWorldInverse).z,
+  );
+  return baseWorld * (235 / z) * pixelWorld * dist;
+}
+
 export default function SearchLocator({
   target,
   locatorKey,
-  onScreenPos,
+  highlightPersist,
+  onHighlightDismissed,
 }: SearchLocatorProps) {
-  const { camera, size, gl } = useThree();
-  const startMs = useRef(0);
-  const projected = useMemo(() => new THREE.Vector3(), []);
+  const { camera, size, clock } = useThree();
+  const pingStartMs = useRef(0);
+  const growStartMs = useRef(0);
+  const shrinkStartMs = useRef<number | null>(null);
+  const shrinkFrom = useRef(1);
+  const enlargeRef = useRef(0);
+  const wasPersisting = useRef(false);
+  const dismissedRef = useRef(false);
   const worldPos = useMemo(() => new THREE.Vector3(), []);
 
   const dimRef = useRef<THREE.Mesh>(null);
@@ -124,22 +147,31 @@ export default function SearchLocator({
   );
 
   useEffect(() => {
-    if (!target) {
-      onScreenPos(null);
-      return;
-    }
-    startMs.current = performance.now();
+    if (!target) return;
+    pingStartMs.current = performance.now();
+    growStartMs.current = performance.now();
+    shrinkStartMs.current = null;
+    dismissedRef.current = false;
+    wasPersisting.current = highlightPersist;
+
     if (target.kind === "holder") {
       highlightMat.color.set(target.color);
     } else {
       highlightMat.color.set("#ffb060");
       ringMats.forEach((m) => m.color.set("#ff9040"));
     }
-  }, [target, locatorKey, onScreenPos, highlightMat, ringMats]);
+  }, [target, locatorKey, highlightMat, ringMats]);
+
+  useEffect(() => {
+    if (wasPersisting.current && !highlightPersist && target?.kind === "holder") {
+      shrinkFrom.current = Math.max(enlargeRef.current, 0.15);
+      shrinkStartMs.current = performance.now();
+    }
+    wasPersisting.current = highlightPersist;
+  }, [highlightPersist, target]);
 
   useFrame(() => {
     if (!target) {
-      onScreenPos(null);
       dimMat.opacity = 0;
       highlightMat.opacity = 0;
       ringMats.forEach((m) => {
@@ -149,18 +181,41 @@ export default function SearchLocator({
     }
 
     worldPos.set(...target.position);
-    projected.copy(worldPos).project(camera);
-    const rect = gl.domElement.getBoundingClientRect();
-    onScreenPos({
-      x: rect.left + (projected.x * 0.5 + 0.5) * size.width,
-      y: rect.top + (-projected.y * 0.5 + 0.5) * size.height,
-    });
+    const now = performance.now();
+    const pingElapsedMs = now - pingStartMs.current;
+    const pingElapsedSec = pingElapsedMs / 1000;
+    const showPing = pingElapsedMs <= PING_MS + 100;
+    const dim = showPing ? dimOpacity(pingElapsedMs) : 0;
 
-    const elapsedMs = performance.now() - startMs.current;
-    const showEffects = elapsedMs <= ANIM_MS + 100;
-    const elapsedSec = elapsedMs / 1000;
-    const dim = showEffects ? dimOpacity(elapsedMs) : 0;
-    const enlarge = showEffects ? enlargeFactor(elapsedMs) : 0;
+    let enlarge = 0;
+    if (target.kind === "holder") {
+      if (shrinkStartMs.current !== null) {
+        const shrinkT = Math.min(
+          1,
+          (now - shrinkStartMs.current) / SHRINK_MS,
+        );
+        enlarge = shrinkFrom.current * (1 - easeInOutCubic(shrinkT));
+        if (shrinkT >= 1 && !dismissedRef.current) {
+          dismissedRef.current = true;
+          onHighlightDismissed?.();
+        }
+      } else if (highlightPersist) {
+        const growT = Math.min(1, (now - growStartMs.current) / GROW_MS);
+        enlarge = easeOutCubic(growT);
+      }
+    } else if (showPing) {
+      const growT = Math.min(1, pingElapsedMs / GROW_MS);
+      enlarge = easeOutCubic(growT) * (1 - Math.max(0, (pingElapsedMs - 2600) / 400));
+    }
+
+    enlargeRef.current = enlarge;
+
+    const glimmer =
+      target.kind === "holder" && enlarge > 0.02
+        ? 0.86 +
+          0.1 * Math.sin(clock.elapsedTime * 2.1) +
+          0.06 * Math.sin(clock.elapsedTime * 3.4 + 1.2)
+        : 1;
 
     if (dimRef.current) {
       dimMat.opacity = dim;
@@ -184,37 +239,28 @@ export default function SearchLocator({
       highlightRef.current.position.copy(worldPos);
       highlightRef.current.quaternion.copy(camera.quaternion);
 
-      const persp = camera as THREE.PerspectiveCamera;
-      const dist = worldPos.distanceTo(camera.position);
-      const pixelWorld =
-        (2 * Math.tan((persp.fov * Math.PI) / 360)) / size.height;
-
       let worldSize = 8;
-      if (target.kind === "holder" && target.starKind === "top75") {
-        const baseCore = target.baseCoreSize ?? 6;
-        const baseGlow = target.baseGlowSize ?? 10;
-        const glowOp = target.baseGlowOpacity ?? 0.3;
-        const baseWorld = baseCore + baseGlow * glowOp;
-        const scaled = baseWorld * (1 + (TOP75_LOCATOR_SCALE - 1) * enlarge);
-        const z = Math.max(
-          0.1,
-          -worldPos.clone().applyMatrix4(camera.matrixWorldInverse).z,
-        );
-        worldSize = scaled * (235 / z) * pixelWorld * dist;
+      if (target.kind === "holder") {
+        worldSize = topTierWorldSize(worldPos, camera, size) * enlarge;
       } else {
-        let screenPx = 14;
-        if (target.kind === "holder") {
-          const base = target.baseScreenPixels ?? 1.2;
-          screenPx = base + (OUTER_LOCATOR_SCREEN_PX - base) * enlarge;
-        } else {
-          screenPx = 18 + enlarge * 10;
-        }
+        const persp = camera as THREE.PerspectiveCamera;
+        const dist = worldPos.distanceTo(camera.position);
+        const pixelWorld =
+          (2 * Math.tan((persp.fov * Math.PI) / 360)) / size.height;
+        const screenPx = 18 + enlarge * 10;
         worldSize = screenPx * pixelWorld * dist * (0.9 + enlarge * 0.35);
       }
 
-      highlightRef.current.scale.setScalar(worldSize);
-      highlightMat.opacity = showEffects ? 0.55 + enlarge * 0.45 : 0;
-      highlightRef.current.visible = showEffects && highlightMat.opacity > 0.02;
+      highlightRef.current.scale.setScalar(
+        Math.max(0, worldSize) * (0.96 + (glimmer - 0.86) * 0.35),
+      );
+      highlightMat.opacity =
+        target.kind === "holder"
+          ? enlarge * (0.72 + (glimmer - 0.86) * 1.8)
+          : showPing
+            ? enlarge * 0.85
+            : 0;
+      highlightRef.current.visible = highlightMat.opacity > 0.02;
     }
 
     for (let i = 0; i < PULSE_COUNT; i++) {
@@ -222,7 +268,7 @@ export default function SearchLocator({
       const mat = ringMats[i];
       if (!ring) continue;
 
-      const strength = showEffects ? pulseStrength(elapsedSec, i) : 0;
+      const strength = showPing ? pulseStrength(pingElapsedSec, i) : 0;
       if (strength <= 0.01) {
         ring.visible = false;
         mat.opacity = 0;
@@ -231,7 +277,7 @@ export default function SearchLocator({
 
       const progress = Math.min(
         1,
-        Math.max(0, (elapsedSec - (0.15 + i * 0.75)) / PULSE_DURATION),
+        Math.max(0, (pingElapsedSec - (0.15 + i * 0.75)) / PULSE_DURATION),
       );
       const scale = 0.4 + progress * 5.5;
 

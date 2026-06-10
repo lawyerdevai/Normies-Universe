@@ -24,9 +24,10 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
   return { type: "invalid" };
 }
 
-/** Mid-tier holder star screen-pixel target for outer sky locator enlargement. */
-export const OUTER_LOCATOR_SCREEN_PX = 10;
-export const TOP75_LOCATOR_SCALE = 1.5;
+/** Rank-1 holder star visual — search highlight target for every holder star. */
+export const TOP_TIER_LOCATOR_CORE = 11.8;
+export const TOP_TIER_LOCATOR_GLOW = 24;
+export const TOP_TIER_LOCATOR_GLOW_OPACITY = 0.48;
 
 export function locatorFromHolderMatch(
   match: ReturnType<typeof findHolderByWallet>,
@@ -74,8 +75,3 @@ export function locatorFromHolderMatch(
   };
 }
 
-export function locatorLabelText(target: LocatorTarget): string {
-  if (target.kind === "pyre") return target.label;
-  const count = target.normieCount.toLocaleString();
-  return `${target.walletDisplay} · ${count} Normies`;
-}

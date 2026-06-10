@@ -20,5 +20,4 @@ export { findHolderByWallet } from "./searchHolderStars";
 export {
   parseSearchQuery,
   locatorFromHolderMatch,
-  locatorLabelText,
 } from "./resolveSearch";

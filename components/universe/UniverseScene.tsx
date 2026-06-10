@@ -18,7 +18,6 @@ import SearchLocator from "@/components/universe/SearchLocator";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
 import SearchBar from "@/components/ui/SearchBar";
-import SearchResultLabel from "@/components/ui/SearchResultLabel";
 import PyreDetailPanel from "@/components/ui/PyreDetailPanel";
 import WalletDetailPanel from "@/components/ui/WalletDetailPanel";
 import {
@@ -40,7 +39,6 @@ import {
 } from "@/lib/universe";
 import {
   locatorFromHolderMatch,
-  locatorLabelText,
   parseSearchQuery,
 } from "@/lib/universe/resolveSearch";
 import type { RankedHolder } from "@/lib/opensea/holders";
@@ -102,6 +100,7 @@ function SceneContent({
   hoveredCore,
   locatorTarget,
   locatorKey,
+  highlightPersist,
   pyreLocatorKey,
   reducedMotion,
   isMobile,
@@ -109,7 +108,7 @@ function SceneContent({
   resetKey,
   selectedId,
   starHoverRef,
-  onLocatorScreenPos,
+  onHighlightDismissed,
   onHover,
   onSelect,
   onEmptyClick,
@@ -123,6 +122,7 @@ function SceneContent({
   hoveredCore: boolean;
   locatorTarget: LocatorTarget | null;
   locatorKey: number;
+  highlightPersist: boolean;
   pyreLocatorKey: number;
   reducedMotion: boolean;
   isMobile: boolean;
@@ -130,7 +130,7 @@ function SceneContent({
   resetKey: number;
   selectedId: string | null;
   starHoverRef: React.RefObject<HolderGroupStar | null>;
-  onLocatorScreenPos: (pos: { x: number; y: number } | null) => void;
+  onHighlightDismissed: () => void;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
@@ -194,7 +194,8 @@ function SceneContent({
       <SearchLocator
         target={locatorTarget}
         locatorKey={locatorKey}
-        onScreenPos={onLocatorScreenPos}
+        highlightPersist={highlightPersist}
+        onHighlightDismissed={onHighlightDismissed}
       />
 
       <CameraRig
@@ -310,19 +311,12 @@ export default function UniverseScene() {
   const [searchNotFound, setSearchNotFound] = useState(false);
   const [locatorTarget, setLocatorTarget] = useState<LocatorTarget | null>(null);
   const [locatorKey, setLocatorKey] = useState(0);
+  const [highlightPersist, setHighlightPersist] = useState(false);
   const [pyreLocatorKey, setPyreLocatorKey] = useState(0);
-  const [searchLabel, setSearchLabel] = useState<string | null>(null);
-  const [labelScreenPos, setLabelScreenPos] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
 
-  const handleLocatorScreenPos = useCallback(
-    (pos: { x: number; y: number } | null) => {
-      if (searchLabel) setLabelScreenPos(pos);
-    },
-    [searchLabel],
-  );
+  const handleHighlightDismissed = useCallback(() => {
+    setLocatorTarget(null);
+  }, []);
 
   const handleHover = useCallback(
     (group: HolderGroupStar | null, screenPos?: { x: number; y: number }) => {
@@ -345,27 +339,26 @@ export default function UniverseScene() {
   const handleSelect = useCallback((group: HolderGroupStar) => {
     setWalletSelection(holderToWalletSelection(group));
     setPyreOpen(false);
-    setSearchLabel(null);
-    setLocatorTarget(null);
+    setHighlightPersist(false);
   }, []);
 
   const handleCoreSelect = useCallback(() => {
     setPyreOpen(true);
     setWalletSelection(null);
-    setSearchLabel(null);
-    setLocatorTarget(null);
+    setHighlightPersist(false);
   }, []);
 
   const handleClosePanel = useCallback(() => {
     setWalletSelection(null);
     setPyreOpen(false);
+    setHighlightPersist(false);
+    setLocatorTarget((current) =>
+      current?.kind === "pyre" ? null : current,
+    );
   }, []);
 
   const handleEmptyClick = useCallback(() => {
     handleClosePanel();
-    setSearchLabel(null);
-    setLocatorTarget(null);
-    setLabelScreenPos(null);
   }, [handleClosePanel]);
 
   const handleResetCamera = useCallback(() => {
@@ -382,7 +375,7 @@ export default function UniverseScene() {
 
       setLocatorTarget(target);
       setLocatorKey((k) => k + 1);
-      setSearchLabel(locatorLabelText(target));
+      setHighlightPersist(true);
 
       if (match.kind === "top75") {
         setWalletSelection(holderToWalletSelection(match.star));
@@ -397,9 +390,8 @@ export default function UniverseScene() {
   const handleSearch = useCallback(
     async (query: string) => {
       setSearchNotFound(false);
-      setSearchLabel(null);
+      setHighlightPersist(false);
       setLocatorTarget(null);
-      setLabelScreenPos(null);
 
       const parsed = parseSearchQuery(query);
       if (parsed.type === "invalid") {
@@ -442,7 +434,7 @@ export default function UniverseScene() {
           setLocatorTarget(pyreTarget);
           setLocatorKey((k) => k + 1);
           setPyreLocatorKey((k) => k + 1);
-          setSearchLabel(pyreTarget.label);
+          setHighlightPersist(false);
           setWalletSelection(null);
           setPyreOpen(true);
           return;
@@ -492,6 +484,7 @@ export default function UniverseScene() {
           }
           locatorTarget={locatorTarget}
           locatorKey={locatorKey}
+          highlightPersist={highlightPersist}
           pyreLocatorKey={pyreLocatorKey}
           hoveredCore={hoveredCore}
           reducedMotion={reducedMotion}
@@ -499,7 +492,7 @@ export default function UniverseScene() {
           controlsRef={controlsRef}
           resetKey={resetKey}
           starHoverRef={starHoverRef}
-          onLocatorScreenPos={handleLocatorScreenPos}
+          onHighlightDismissed={handleHighlightDismissed}
           onHover={handleHover}
           onSelect={handleSelect}
           onPyreClick={handleCoreSelect}
@@ -520,8 +513,6 @@ export default function UniverseScene() {
         </header>
         <SearchBar onSearch={handleSearch} notFound={searchNotFound} />
       </div>
-
-      <SearchResultLabel text={searchLabel} position={labelScreenPos} />
 
       <StarTooltip
         group={hoveredGroup}
