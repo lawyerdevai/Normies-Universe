@@ -9,6 +9,7 @@ import {
   holderStarCollisionRadius,
   resolveHolderStarSpacing,
 } from "./resolveHolderStarSpacing";
+import { verifyHolderBandPlacement } from "./verifyHolderBandPlacement";
 
 export function countClickableStars(stars: HolderGroupStar[]) {
   return stars.filter((s) => s.clickable).length;
@@ -81,7 +82,7 @@ export function assignHoldersToStars(
     });
   }
 
-  return mapped.map((star) => {
+  const result = mapped.map((star) => {
     const placement = placementById.get(star.id);
     if (!placement) return star;
 
@@ -100,6 +101,34 @@ export function assignHoldersToStars(
       brightness: visual.brightness,
     };
   });
+
+  if (process.env.NODE_ENV === "development") {
+    const placed = result.filter((s) => s.collectionRank !== undefined);
+    const bandCheck = verifyHolderBandPlacement(
+      placed.map((s) => ({
+        collectionRank: s.collectionRank!,
+        position: s.position,
+        distanceFromCenter: s.distanceFromCenter,
+      })),
+    );
+    console.info(
+      "[Normie Universe] Holder band placement verify",
+      {
+        allValid: bandCheck.allValid,
+        bandViolations: bandCheck.bandViolations.length,
+        pyreViolations: bandCheck.pyreViolations.length,
+        orderingOk: bandCheck.orderingOk,
+      },
+      bandCheck.checks.map((c) => ({
+        rank: c.rank,
+        dist: Number(c.distance.toFixed(2)),
+        band: `${c.bandMin.toFixed(1)}-${c.bandMax.toFixed(1)}`,
+        ok: c.inBand && !c.inPyreZone,
+      })),
+    );
+  }
+
+  return result;
 }
 
 export function verifyAssignment(stars: HolderGroupStar[]) {

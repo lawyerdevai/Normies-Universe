@@ -1,7 +1,10 @@
-import * as THREE from "three";
 import { PYRE_RX, PYRE_RY, PYRE_RZ } from "./generatePyre";
 import type { StarPlacement } from "./generateStarPositions";
 import { scatterForRank } from "./holderStarScatter";
+import {
+  localToWorldPlacement,
+  ringForRank,
+} from "./holderStarBands";
 import { createRng, gaussian, lerp } from "./seededRandom";
 
 export { PLACEMENT_SEED } from "./holderStarScatter";
@@ -10,10 +13,6 @@ const ARM_SWEEP = Math.PI * 3;
 const CORE_RADIUS = 14;
 const MAX_RADIUS = 95;
 const SPIRAL_K = Math.log(MAX_RADIUS / CORE_RADIUS) / ARM_SWEEP;
-const GALAXY_EULER = new THREE.Euler(0.28, 0.15, 0.35, "XYZ");
-const GALAXY_SCALE = 1.15;
-
-const _local = new THREE.Vector3();
 
 function hashSeed(seed: string) {
   let hash = 0;
@@ -21,22 +20,6 @@ function hashSeed(seed: string) {
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   }
   return hash;
-}
-
-type RankRing = {
-  tMin: number;
-  tMax: number;
-  count: number;
-  index0: number;
-};
-
-/** Strict non-overlapping rank rings — inner to outer arm tips. */
-function ringForRank(rank: number): RankRing {
-  if (rank <= 5) return { tMin: 0.055, tMax: 0.165, count: 5, index0: 1 };
-  if (rank <= 15) return { tMin: 0.167, tMax: 0.275, count: 10, index0: 6 };
-  if (rank <= 30) return { tMin: 0.277, tMax: 0.405, count: 15, index0: 16 };
-  if (rank <= 50) return { tMin: 0.407, tMax: 0.615, count: 20, index0: 31 };
-  return { tMin: 0.617, tMax: 0.93, count: 25, index0: 51 };
 }
 
 function angleDistance(a: number, b: number) {
@@ -57,17 +40,6 @@ function nearestArmAngle(armT: number, angle: number) {
   const arm0 = armT * ARM_SWEEP;
   const arm1 = Math.PI + armT * ARM_SWEEP;
   return angleDistance(angle, arm0) < angleDistance(angle, arm1) ? arm0 : arm1;
-}
-
-function toWorldPlacement(lx: number, ly: number, lz: number): StarPlacement {
-  _local.set(lx * GALAXY_SCALE, ly * GALAXY_SCALE, lz * GALAXY_SCALE);
-  _local.applyEuler(GALAXY_EULER);
-  return {
-    position: [_local.x, _local.y, _local.z],
-    distanceFromCenter: Math.sqrt(
-      _local.x * _local.x + _local.y * _local.y + _local.z * _local.z,
-    ),
-  };
 }
 
 /**
@@ -128,7 +100,7 @@ export function placeTopHolderStar(
     }
   }
 
-  return toWorldPlacement(lx, ly, lz);
+  return localToWorldPlacement(lx, ly, lz);
 }
 
 export function rotatePlacementY(

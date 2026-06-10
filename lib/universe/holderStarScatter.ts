@@ -1,27 +1,13 @@
+import { HOLDER_STAR_BANDS } from "./holderStarBands";
 import { clamp01, createRng, gaussian } from "./seededRandom";
 
 /** Change this to reroll the entire within-band star arrangement. */
 export const PLACEMENT_SEED = 1;
 
-type RankRing = {
-  tMin: number;
-  tMax: number;
-  count: number;
-  index0: number;
-};
-
 export type BandScatter = {
   angle: number;
   slotT: number;
 };
-
-const RING_BANDS: RankRing[] = [
-  { tMin: 0.055, tMax: 0.165, count: 5, index0: 1 },
-  { tMin: 0.167, tMax: 0.275, count: 10, index0: 6 },
-  { tMin: 0.277, tMax: 0.405, count: 15, index0: 16 },
-  { tMin: 0.407, tMax: 0.615, count: 20, index0: 31 },
-  { tMin: 0.617, tMax: 0.93, count: 25, index0: 51 },
-];
 
 type Cluster = {
   angle: number;
@@ -42,7 +28,7 @@ function pickWeighted(clusters: Cluster[], rng: () => number) {
 function buildScatterForSeed(seed: number) {
   const scatter = new Map<number, BandScatter>();
 
-  RING_BANDS.forEach((ring, bandIndex) => {
+  HOLDER_STAR_BANDS.forEach((ring, bandIndex) => {
     const rng = createRng(seed * 10007 + bandIndex * 7919);
     const innerLean = 1 - bandIndex * 0.1;
     const clusterFrac = (0.34 + rng() * 0.22) * innerLean;

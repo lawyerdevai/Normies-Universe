@@ -1,3 +1,4 @@
+import { enforceHolderStarPlacement } from "./enforceHolderStarPlacement";
 import type { StarPlacement } from "./generateStarPositions";
 import type { HolderStarVisual } from "./holderStarVisual";
 import { placeTopHolderStar, rotatePlacementY } from "./placeTopHolderStar";
@@ -69,13 +70,13 @@ export function resolveHolderStarSpacing(
     }
 
     if (!hasCollision(placement.position, radius, placed)) {
-      return placement;
+      return enforceHolderStarPlacement(rank, placement);
     }
   }
 
-  const fallback = placeTopHolderStar(rank, seed);
-  return rotatePlacementY(
-    fallback,
+  const fallback = rotatePlacementY(
+    placeTopHolderStar(rank, seed),
     (((hash >> 6) % 1000) / 1000) * Math.PI * 0.5,
   );
+  return enforceHolderStarPlacement(rank, fallback);
 }
