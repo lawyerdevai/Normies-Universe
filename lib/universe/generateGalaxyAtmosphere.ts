@@ -255,5 +255,39 @@ export function generateGalaxyAtmosphere(count = 14000): AtmosphereParticle[] {
     }
   }
 
+  // Inter-arm disk — faint random scatter between spiral arms
+  const diskFillTarget = Math.floor(perArm * 2 * 0.175);
+  const diskRMin = 26;
+  let diskAdded = 0;
+  let diskAttempts = 0;
+  while (diskAdded < diskFillTarget && diskAttempts < diskFillTarget * 6) {
+    diskAttempts++;
+    const theta = rng() * Math.PI * 2;
+    const r = diskRMin + Math.sqrt(rng()) * (MAX_RADIUS - diskRMin);
+    const x = r * Math.cos(theta) + gaussian(rng) * 1.1;
+    const z = r * Math.sin(theta) + gaussian(rng) * 1.1;
+    const radial = Math.hypot(x, z);
+    if (radial > MAX_RADIUS) continue;
+
+    const y = gaussian(rng) * (0.9 + rng() * 1.5);
+    const radialT = Math.min(
+      1,
+      Math.max(0, (radial - CORE_RADIUS) / (MAX_RADIUS - CORE_RADIUS)),
+    );
+    const baseBright =
+      (0.07 + (1 - radialT) * 0.1) * (0.6 + rng() * 0.4);
+    const diskBrightScale = 0.3 + rng() * 0.1;
+
+    particles.push({
+      position: [x, y, z],
+      size: 0.12 + rng() * 0.26,
+      brightness:
+        baseBright * 3.0 * diskBrightScale * radialBrightnessWeight(x, z),
+      color: armColorByRadius(radial, rng),
+      isCore: false,
+    });
+    diskAdded++;
+  }
+
   return particles;
 }
