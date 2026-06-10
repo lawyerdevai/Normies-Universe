@@ -5,7 +5,8 @@ import { clamp01, createRng, gaussian, lerp } from "./seededRandom";
 
 const ARM_SWEEP = Math.PI * 3;
 const CORE_RADIUS = 14;
-const SPIRAL_K = Math.log(95 / CORE_RADIUS) / ARM_SWEEP;
+const MAX_RADIUS = 95;
+const SPIRAL_K = Math.log(MAX_RADIUS / CORE_RADIUS) / ARM_SWEEP;
 const GALAXY_EULER = new THREE.Euler(0.28, 0.15, 0.35, "XYZ");
 const GALAXY_SCALE = 1.15;
 
@@ -19,18 +20,23 @@ function hashSeed(seed: string) {
   return hash;
 }
 
-function zoneForRank(rank: number) {
-  if (rank <= 7) return { tMin: 0.055, tMax: 0.17, count: 7, index0: 1 };
-  if (rank <= 25) return { tMin: 0.14, tMax: 0.31, count: 18, index0: 8 };
-  if (rank <= 50) return { tMin: 0.27, tMax: 0.47, count: 25, index0: 26 };
-  return { tMin: 0.43, tMax: 0.62, count: 25, index0: 51 };
+type RankRing = {
+  tMin: number;
+  tMax: number;
+  count: number;
+  index0: number;
+};
+
+/** Rank → galactic ring band (always inside the arm structure). */
+function ringForRank(rank: number): RankRing {
+  if (rank <= 5) return { tMin: 0.05, tMax: 0.17, count: 5, index0: 1 };
+  if (rank <= 20) return { tMin: 0.14, tMax: 0.3, count: 15, index0: 6 };
+  if (rank <= 45) return { tMin: 0.26, tMax: 0.46, count: 25, index0: 21 };
+  return { tMin: 0.43, tMax: 0.6, count: 30, index0: 46 };
 }
 
-function rankTInZone(rank: number) {
-  if (rank <= 7) return (rank - 1) / 6;
-  if (rank <= 25) return (rank - 8) / 17;
-  if (rank <= 50) return (rank - 26) / 24;
-  return (rank - 51) / 24;
+function rankTInRing(rank: number, ring: RankRing) {
+  return clamp01((rank - ring.index0) / Math.max(1, ring.count - 1));
 }
 
 function angleDistance(a: number, b: number) {
@@ -38,22 +44,22 @@ function angleDistance(a: number, b: number) {
   return Math.min(d, Math.PI * 2 - d);
 }
 
-/** Even sector per rank in tier + wallet-hash offset for deterministic organic angle. */
-function angleForPlacement(rank: number, seed: string, rng: () => number) {
-  const zone = zoneForRank(rank);
-  const tierIndex = rank - zone.index0;
-  const sector = (Math.PI * 2) / zone.count;
+/** Full 360° sector per rank + wallet-hash offset for organic scatter. */
+function angleForPlacement(rank: number, ring: RankRing, seed: string, rng: () => number) {
+  const tierIndex = rank - ring.index0;
+  const sector = (Math.PI * 2) / ring.count;
   const sectorCenter = tierIndex * sector + sector * 0.5;
 
   const hash = hashSeed(seed);
   const walletT = (hash % 100000) / 100000;
-  const walletOffset = (walletT - 0.5) * sector * 0.82;
+  const walletOffset = (walletT - 0.5) * sector * 0.85;
 
-  return sectorCenter + walletOffset + gaussian(rng) * sector * 0.06;
+  return sectorCenter + walletOffset + gaussian(rng) * sector * 0.08;
 }
 
 /**
- * Place a top-75 holder star by collection rank — full 360° per tier.
+ * Place a top-75 holder star by rank ring — inner rings near Pyre,
+ * outer rings at the galaxy edge, full 360° organic scatter.
  */
 export function placeTopHolderStar(
   rank: number,
@@ -61,28 +67,28 @@ export function placeTopHolderStar(
 ): StarPlacement {
   const hash = hashSeed(seed);
   const rng = createRng(hash + rank * 1597);
-  const zone = zoneForRank(rank);
-  const rankT = clamp01(rankTInZone(rank));
+  const ring = ringForRank(rank);
+  const rankT = rankTInRing(rank, ring);
 
   const armT =
-    lerp(zone.tMin, zone.tMax, rankT * 0.5 + rng() * 0.5) +
-    gaussian(rng) * 0.01;
+    lerp(ring.tMin, ring.tMax, rankT * 0.45 + rng() * 0.55) +
+    gaussian(rng) * 0.012;
   const r = CORE_RADIUS * Math.exp(SPIRAL_K * armT * ARM_SWEEP);
 
-  let angle = angleForPlacement(rank, seed, rng);
+  let angle = angleForPlacement(rank, ring, seed, rng);
   const onArm = (hash >> 12) % 100 < 48;
 
   const armWidth = (1.1 + (1 - armT) * 2.6) * Math.exp(-r / 88);
   const perp = angle + Math.PI / 2;
-  let scatter = gaussian(rng) * armWidth * 0.28;
+  let scatter = gaussian(rng) * armWidth * 0.3;
 
   if (onArm) {
     const arm0 = armT * ARM_SWEEP;
     const arm1 = Math.PI + armT * ARM_SWEEP;
     angle =
       (angleDistance(angle, arm0) < angleDistance(angle, arm1) ? arm0 : arm1) +
-      gaussian(rng) * 0.05;
-    scatter = gaussian(rng) * armWidth * 0.22;
+      gaussian(rng) * 0.055;
+    scatter = gaussian(rng) * armWidth * 0.24;
   }
 
   let lx = r * Math.cos(angle) + Math.cos(perp) * scatter;
@@ -90,12 +96,12 @@ export function placeTopHolderStar(
   let ly = gaussian(rng) * (0.65 + (1 - armT) * 1.05);
 
   if (!onArm) {
-    const bridge = gaussian(rng) * armWidth * 0.32;
+    const bridge = gaussian(rng) * armWidth * 0.34;
     lx += Math.cos(angle + 0.55) * bridge;
     lz += Math.sin(angle + 0.55) * bridge;
   }
 
-  if (rank <= 7) {
+  if (rank <= 5) {
     const norm =
       (lx / PYRE_RX) ** 2 + (ly / PYRE_RY) ** 2 + (lz / PYRE_RZ) ** 2;
     if (norm < 1.18) {

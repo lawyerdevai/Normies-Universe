@@ -1,13 +1,15 @@
 "use client";
 
-import { type ThreeEvent, useFrame } from "@react-three/fiber";
+import { type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
+  hitRadiusForVisual,
   normieRangeFromStars,
   visualFromHoldings,
+  type HolderStarVisual,
 } from "@/lib/universe/holderStarVisual";
-import type { HolderGroupStar, HolderGroupTier } from "@/types/universe";
+import type { HolderGroupStar } from "@/types/universe";
 
 export type HolderGroupStarsDebugLayers = {
   visible: boolean;
@@ -30,12 +32,49 @@ interface HolderGroupStarsProps {
   onSelect: (group: HolderGroupStar) => void;
 }
 
-const HIT_RADIUS: Record<HolderGroupTier, number> = {
-  core: 6,
-  inner: 5.5,
-  middle: 5,
-  outer: 4.5,
-};
+const _projected = new THREE.Vector3();
+
+function pickNearestGroup(
+  pointer: THREE.Vector2,
+  camera: THREE.Camera,
+  viewport: { width: number; height: number },
+  groups: HolderGroupStar[],
+  visuals: HolderStarVisual[],
+) {
+  const px = (pointer.x * 0.5 + 0.5) * viewport.width;
+  const py = (-pointer.y * 0.5 + 0.5) * viewport.height;
+
+  let bestIndex = -1;
+  let bestDist = Infinity;
+
+  for (let i = 0; i < groups.length; i++) {
+    _projected.set(...groups[i].position).project(camera);
+    if (_projected.z > 1) continue;
+
+    const sx = (_projected.x * 0.5 + 0.5) * viewport.width;
+    const sy = (-_projected.y * 0.5 + 0.5) * viewport.height;
+    const dist = Math.hypot(sx - px, sy - py);
+    const threshold = hitRadiusForVisual(visuals[i]) * 1.15;
+
+    if (dist <= threshold && dist < bestDist) {
+      bestDist = dist;
+      bestIndex = i;
+    }
+  }
+
+  return bestIndex >= 0 ? groups[bestIndex] : null;
+}
+
+function pointerScreenPos(
+  pointer: THREE.Vector2,
+  viewport: { width: number; height: number },
+  canvasRect: DOMRect,
+) {
+  return {
+    x: canvasRect.left + (pointer.x * 0.5 + 0.5) * viewport.width,
+    y: canvasRect.top + (-pointer.y * 0.5 + 0.5) * viewport.height,
+  };
+}
 
 type BandVisual = {
   coreMin: number;
@@ -190,9 +229,12 @@ export default function HolderGroupStars({
   const showVisible = debugLayers?.visible ?? true;
   const showGlow = debugLayers?.glow ?? true;
   const showHits = debugLayers?.hits ?? true;
+  const { camera, pointer, size, gl } = useThree();
   const pointsRef = useRef<THREE.Points>(null);
   const hitRef = useRef<THREE.InstancedMesh>(null);
   const pulseStart = useRef(0);
+  const lastHoverId = useRef<string | null>(null);
+  const visualsRef = useRef<HolderStarVisual[]>([]);
   const hoveredIndex = groups.findIndex((g) => g.id === hoveredId);
   const selectedIndex = groups.findIndex((g) => g.id === selectedId);
 
@@ -269,6 +311,7 @@ export default function HolderGroupStars({
       toneMapped: false,
     });
 
+    visualsRef.current = visuals;
     return { geometry, material };
   }, [groups, showGlow]);
 
@@ -285,9 +328,11 @@ export default function HolderGroupStars({
       pointsRef.current.raycast = () => {};
     }
     if (!hitRef.current) return;
+    const normieRange = normieRangeFromStars(groups);
     groups.forEach((group, i) => {
+      const visual = starVisual(group, i, normieRange);
       _position.set(...group.position);
-      _scale.setScalar(HIT_RADIUS[group.tier]);
+      _scale.setScalar(hitRadiusForVisual(visual));
       _matrix.compose(_position, new THREE.Quaternion(), _scale);
       hitRef.current!.setMatrixAt(i, _matrix);
     });
@@ -311,6 +356,32 @@ export default function HolderGroupStars({
     material.uniforms.uHoveredIndex.value = hoveredIndex;
     material.uniforms.uSelectedIndex.value = selectedIndex;
 
+    const nearest = pickNearestGroup(
+      pointer,
+      camera,
+      size,
+      groups,
+      visualsRef.current,
+    );
+    const nextId = nearest?.id ?? null;
+    if (nextId !== lastHoverId.current) {
+      lastHoverId.current = nextId;
+      if (nearest) {
+        document.body.style.cursor = "pointer";
+        onHover(
+          nearest,
+          pointerScreenPos(
+            pointer,
+            size,
+            gl.domElement.getBoundingClientRect(),
+          ),
+        );
+      } else {
+        document.body.style.cursor = "default";
+        onHover(null);
+      }
+    }
+
     if (material.uniforms.uPulseIndex.value < 0) return;
     const elapsed = performance.now() / 1000 - pulseStart.current;
     if (elapsed > 1.2) {
@@ -322,21 +393,18 @@ export default function HolderGroupStars({
       Math.sin(Math.min(elapsed / 0.55, 1) * Math.PI);
   });
 
-  const handlePointer = (e: ThreeEvent<PointerEvent>, entering: boolean) => {
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    if (e.instanceId === undefined) {
-      onHover(null);
-      document.body.style.cursor = "default";
-      return;
-    }
-    const group = groups[e.instanceId];
-    if (entering) {
-      document.body.style.cursor = "pointer";
-      onHover(group, { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY });
-    } else {
-      document.body.style.cursor = "default";
-      onHover(null);
-    }
+    const nearest =
+      pickNearestGroup(
+        e.pointer,
+        camera,
+        size,
+        groups,
+        visualsRef.current,
+      ) ??
+      (e.instanceId !== undefined ? groups[e.instanceId] : null);
+    if (nearest) onSelect(nearest);
   };
 
   return (
@@ -347,20 +415,7 @@ export default function HolderGroupStars({
         visible={showHits}
         frustumCulled={false}
         renderOrder={12}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (e.instanceId !== undefined) onSelect(groups[e.instanceId]);
-        }}
-        onPointerOver={(e) => handlePointer(e, true)}
-        onPointerMove={(e: ThreeEvent<PointerEvent>) => {
-          if (e.instanceId !== undefined) {
-            onHover(groups[e.instanceId], {
-              x: e.nativeEvent.clientX,
-              y: e.nativeEvent.clientY,
-            });
-          }
-        }}
-        onPointerOut={(e) => handlePointer(e, false)}
+        onClick={handleClick}
       />
       {showVisible ? (
         <points

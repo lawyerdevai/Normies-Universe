@@ -9,19 +9,14 @@ export type HolderStarVisual = {
   brightness: number;
 };
 
-/** Visual range for top-holder stars — matches scene aesthetic, driven by Normie count. */
-const HOLDINGS_VISUAL = {
-  coreMin: 3.35,
-  coreMax: 9.5,
-  glowMin: 5.2,
-  glowMax: 20,
-  glowOpMin: 0.2,
-  glowOpMax: 0.5,
-  sparkleMin: 0.3,
-  sparkleMax: 0.72,
-  brightMin: 0.8,
-  brightMax: 1.42,
-};
+/** Rank 5 anchor sizes — rank 75 floors at 60% of these. */
+const RANK5_CORE = 8.8;
+const RANK5_GLOW = 15;
+const RANK5_BRIGHT = 1.16;
+
+const RANK75_CORE = RANK5_CORE * 0.6;
+const RANK75_GLOW = RANK5_GLOW * 0.6;
+const RANK75_BRIGHT = 0.98;
 
 export function normieHoldingsT(count: number, min: number, max: number) {
   if (max <= min) return 1;
@@ -30,21 +25,53 @@ export function normieHoldingsT(count: number, min: number, max: number) {
   );
 }
 
+/**
+ * Tight rank-driven scale — position is primary hierarchy, holdings nudge ±5%.
+ * Every star stays clearly above spiral arm particle size.
+ */
 export function visualFromHoldings(
   count: number,
   min: number,
   max: number,
-  rank?: number,
+  rank = 75,
 ): HolderStarVisual {
-  const t = normieHoldingsT(count, min, max);
-  const rankBoost = rank === 1 ? 1.08 : 1;
+  let core: number;
+  let glow: number;
+  let brightness: number;
+  let glowOpacity: number;
+  let sparkle: number;
+
+  if (rank === 1) {
+    core = 11.8;
+    glow = 24;
+    brightness = 1.5;
+    glowOpacity = 0.48;
+    sparkle = 0.72;
+  } else if (rank <= 5) {
+    const t = (rank - 1) / 4;
+    core = lerp(10.4, RANK5_CORE, t);
+    glow = lerp(19, RANK5_GLOW, t);
+    brightness = lerp(1.38, RANK5_BRIGHT, t);
+    glowOpacity = lerp(0.42, 0.36, t);
+    sparkle = lerp(0.66, 0.56, t);
+  } else {
+    const t = (rank - 5) / 70;
+    core = lerp(RANK5_CORE, RANK75_CORE, t);
+    glow = lerp(RANK5_GLOW, RANK75_GLOW, t);
+    brightness = lerp(RANK5_BRIGHT, RANK75_BRIGHT, t);
+    glowOpacity = lerp(0.34, 0.26, t);
+    sparkle = lerp(0.54, 0.38, t);
+  }
+
+  const holdingsNudge = (normieHoldingsT(count, min, max) - 0.5) * 0.1;
+  const nudge = 1 + holdingsNudge;
 
   return {
-    coreSize: lerp(HOLDINGS_VISUAL.coreMin, HOLDINGS_VISUAL.coreMax, t) * rankBoost,
-    glowSize: lerp(HOLDINGS_VISUAL.glowMin, HOLDINGS_VISUAL.glowMax, t) * rankBoost,
-    glowOpacity: lerp(HOLDINGS_VISUAL.glowOpMin, HOLDINGS_VISUAL.glowOpMax, t),
-    sparkle: lerp(HOLDINGS_VISUAL.sparkleMin, HOLDINGS_VISUAL.sparkleMax, t),
-    brightness: lerp(HOLDINGS_VISUAL.brightMin, HOLDINGS_VISUAL.brightMax, t) * rankBoost,
+    coreSize: core * nudge,
+    glowSize: glow * nudge,
+    glowOpacity,
+    sparkle,
+    brightness: brightness * nudge,
   };
 }
 
@@ -57,4 +84,8 @@ export function normieRangeFromStars(stars: HolderGroupStar[]) {
     min: Math.min(...counts),
     max: Math.max(...counts),
   };
+}
+
+export function hitRadiusForVisual(visual: HolderStarVisual) {
+  return Math.max(10, visual.coreSize * 1.35 + visual.glowSize * 0.45);
 }

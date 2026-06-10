@@ -8,6 +8,7 @@ export {
 export {
   visualFromHoldings,
   normieRangeFromStars,
+  hitRadiusForVisual,
 } from "./holderStarVisual";
 export { placeTopHolderStar } from "./placeTopHolderStar";
 export { buildOuterHolderStars } from "./buildOuterHolderStars";
