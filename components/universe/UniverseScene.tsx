@@ -746,8 +746,8 @@ export default function UniverseScene() {
 
       <div className="pointer-events-none fixed inset-0 z-30">
         <header className="absolute left-6 top-6 max-w-[calc(50%-12rem)]">
-          <h1 className="text-lg font-medium tracking-tight text-white/70 sm:text-xl">
-            Normie Universe
+          <h1 className="normie-universe-title text-lg text-white/70 sm:text-xl">
+            NORMIES UNIVERSE
           </h1>
         </header>
         <SearchBar onSearch={handleSearch} notFound={searchNotFound} />
