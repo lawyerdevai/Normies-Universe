@@ -151,8 +151,19 @@ export default function BurnerStars({
       new THREE.BufferAttribute(brightness, 1),
     );
 
+    geometry.computeBoundingSphere();
+
     return { geometry, material: createHolderStarPointMaterial(true) };
   }, [stars]);
+
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+      hitGeometry.dispose();
+      hitMaterial.dispose();
+    };
+  }, [geometry, material, hitGeometry, hitMaterial]);
 
   useLayoutEffect(() => {
     if (pointsRef.current) {
@@ -232,14 +243,14 @@ export default function BurnerStars({
       <instancedMesh
         ref={hitRef}
         args={[hitGeometry, hitMaterial, stars.length]}
-        frustumCulled={false}
+        frustumCulled
         renderOrder={11}
       />
       <points
         ref={pointsRef}
         geometry={geometry}
         material={material}
-        frustumCulled={false}
+        frustumCulled
         renderOrder={14}
         raycast={() => null}
       />

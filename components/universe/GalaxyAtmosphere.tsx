@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useGalaxyRevealRef } from "@/components/universe/GalaxyArrivalController";
 import * as THREE from "three";
 import { ARM_NOISE_SEED } from "@/lib/universe/armDensityNoise";
@@ -94,8 +94,17 @@ export default function GalaxyAtmosphere({
       blending: THREE.AdditiveBlending,
     });
 
+    geometry.computeBoundingSphere();
+
     return { geometry, material };
   }, [showArms, showBulge, showHalo, ARM_NOISE_SEED]);
+
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+    };
+  }, [geometry, material]);
 
   useLayoutEffect(() => {
     if (pointsRef.current) {
@@ -115,7 +124,7 @@ export default function GalaxyAtmosphere({
         ref={pointsRef}
         geometry={geometry}
         material={material}
-        frustumCulled={false}
+        frustumCulled
         raycast={() => null}
       />
     </group>

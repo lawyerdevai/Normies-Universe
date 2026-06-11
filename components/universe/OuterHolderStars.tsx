@@ -1,9 +1,13 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { buildDecorativeSkyStars } from "@/lib/universe/buildDecorativeSkyStars";
+import {
+  MAX_ORBIT_DISTANCE,
+  MIN_ORBIT_DISTANCE,
+} from "@/lib/universe/cameraConfig";
 import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
 import { LOCATOR_HIGHLIGHT_SCREEN_PX } from "@/lib/universe/screenSpaceLocator";
 import {
@@ -33,6 +37,22 @@ function createSkyStarTexture() {
 }
 
 type SkyStarLike = DecorativeSkyStar | OuterHolderStar;
+
+const LOD_ZOOM_START = 0.6;
+const LOD_ZOOM_BLEND = 0.12;
+const LOD_SIZE_SCALE = 0.6;
+const LOD_MAX_BRIGHTNESS_CUTOFF = 0.3;
+const _orbitTarget = new THREE.Vector3(0, 0, 0);
+
+function outerHolderLodFactor(camera: THREE.Camera) {
+  const dist = camera.position.distanceTo(_orbitTarget);
+  const zoomT =
+    (dist - MIN_ORBIT_DISTANCE) / (MAX_ORBIT_DISTANCE - MIN_ORBIT_DISTANCE);
+  const clamped = Math.max(0, Math.min(1, zoomT));
+  if (clamped <= LOD_ZOOM_START) return 0;
+  const t = (clamped - LOD_ZOOM_START) / LOD_ZOOM_BLEND;
+  return t * t * (3 - 2 * t);
+}
 
 function useSkyStarMaterial(texture: THREE.CanvasTexture) {
   return useMemo(
@@ -119,8 +139,11 @@ function updateHolderInstances(
   highlightActive: boolean,
   breath: number,
   baseColors: THREE.Color[],
+  lodFactor: number,
 ) {
   let colorsDirty = false;
+  const sizeScale = THREE.MathUtils.lerp(1, LOD_SIZE_SCALE, lodFactor);
+  const brightnessCutoff = LOD_MAX_BRIGHTNESS_CUTOFF * lodFactor;
 
   for (let i = 0; i < stars.length; i++) {
     const star = stars[i];
@@ -136,6 +159,13 @@ function updateHolderInstances(
     let brightness = baseBrightness;
 
     const highlighted = i === highlightIndex && highlightBlend > 0.001;
+
+    if (!highlighted && lodFactor > 0 && baseBrightness < brightnessCutoff) {
+      dummy.scale.set(0, 0, 0);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      continue;
+    }
 
     if (highlighted) {
       const targetPx =
@@ -153,7 +183,7 @@ function updateHolderInstances(
       pixels *= 1.0 + lift * 0.18;
     }
 
-    const worldSize = pixels * pixelWorld * dist;
+    const worldSize = pixels * pixelWorld * dist * sizeScale;
     dummy.scale.set(worldSize, worldSize, 1);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
@@ -212,6 +242,16 @@ export default function OuterHolderStars({
 
   const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+      decoMaterial.dispose();
+      skyTexture.dispose();
+      warmTexture.dispose();
+    };
+  }, [geometry, material, decoMaterial, skyTexture, warmTexture]);
+
   useLayoutEffect(() => {
     const mesh = decoRef.current;
     if (!mesh) return;
@@ -252,6 +292,7 @@ export default function OuterHolderStars({
     });
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.raycast = () => {};
+    mesh.computeBoundingSphere();
   }, [stars]);
 
   useFrame(({ clock, camera, size }, dt) => {
@@ -259,6 +300,7 @@ export default function OuterHolderStars({
     const pixelWorld = (2 * Math.tan((persp.fov * Math.PI) / 360)) / size.height;
     const camQuat = camera.quaternion;
     const time = clock.elapsedTime;
+    const lodFactor = outerHolderLodFactor(camera);
 
     const goal = highlightWallet && highlightActive ? 1 : 0;
     highlightBlend.current +=
@@ -311,6 +353,7 @@ export default function OuterHolderStars({
         highlightActive,
         breath,
         baseColors.current,
+        lodFactor,
       );
     }
 
@@ -325,7 +368,7 @@ export default function OuterHolderStars({
         <instancedMesh
           ref={decoRef}
           args={[geometry, decoMaterial, decorative.length]}
-          frustumCulled={false}
+          frustumCulled
           renderOrder={1}
           raycast={() => null}
         />
@@ -334,7 +377,7 @@ export default function OuterHolderStars({
         <instancedMesh
           ref={holderRef}
           args={[geometry, material, stars.length]}
-          frustumCulled={false}
+          frustumCulled
           renderOrder={5}
           raycast={() => null}
         />
