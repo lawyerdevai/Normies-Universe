@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import AbsorbedBurnOverlay from "@/components/starform/AbsorbedBurnOverlay";
 import type { AbsorbedHoverPayload } from "@/components/starform/AbsorbedBurnStars";
+import NormieProfilePanel from "@/components/starform/NormieProfilePanel";
 import StarformScene from "@/components/starform/StarformScene";
 import { generateConstellation } from "@/lib/universe/generateConstellation";
 
@@ -25,6 +26,8 @@ export default function StarformView({ tokenId }: StarformViewProps) {
     number | null
   >(null);
   const [showAbsorbed, setShowAbsorbed] = useState(false);
+  const [totalAbsorbed, setTotalAbsorbed] = useState<number | null>(null);
+  const [focusMode, setFocusMode] = useState(false);
 
   const handleAbsorbedHover = useCallback(
     (payload: AbsorbedHoverPayload | null) => {
@@ -45,6 +48,36 @@ export default function StarformView({ tokenId }: StarformViewProps) {
     setAbsorbedHoverScreen(null);
     setAbsorbedSelectedTokenId(null);
     setShowAbsorbed(false);
+    setTotalAbsorbed(null);
+    setFocusMode(false);
+  }, [tokenId]);
+
+  const enterFocusMode = useCallback(() => {
+    setFocusMode(true);
+    setAbsorbedHover(null);
+    setAbsorbedHoverScreen(null);
+    setAbsorbedSelectedTokenId(null);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(`/api/normie/${tokenId}/absorbed`)
+      .then(async (res) => {
+        if (!res.ok) return 0;
+        const data = (await res.json()) as { totalAbsorbed?: number };
+        return typeof data.totalAbsorbed === "number" ? data.totalAbsorbed : 0;
+      })
+      .then((count) => {
+        if (!cancelled) setTotalAbsorbed(count);
+      })
+      .catch(() => {
+        if (!cancelled) setTotalAbsorbed(0);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [tokenId]);
 
   useEffect(() => {
@@ -94,42 +127,76 @@ export default function StarformView({ tokenId }: StarformViewProps) {
         />
       ) : null}
 
-      {showAbsorbed ? (
-        <AbsorbedBurnOverlay
-          receiverTokenId={tokenId}
-          hover={absorbedHoverScreen}
-          selectedTokenId={absorbedSelectedTokenId}
-          onClose={() => setAbsorbedSelectedTokenId(null)}
+      {focusMode && state.status === "ready" ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-20 cursor-default"
+          aria-label="Show controls"
+          onClick={() => setFocusMode(false)}
         />
       ) : null}
 
-      <div className="pointer-events-none fixed inset-0 z-10">
-        <Link
-          href="/"
-          className="pointer-events-auto absolute left-6 top-6 text-sm text-white/50 transition hover:text-white/75"
-        >
-          ← Normies Universe
-        </Link>
-        <button
-          type="button"
-          onClick={() => {
-            setShowAbsorbed((on) => {
-              if (on) {
-                setAbsorbedHover(null);
-                setAbsorbedHoverScreen(null);
-                setAbsorbedSelectedTokenId(null);
-              }
-              return !on;
-            });
-          }}
-          className={`pointer-events-auto absolute right-6 top-6 text-sm transition ${
-            showAbsorbed
-              ? "text-white/75 hover:text-white/90"
-              : "text-white/50 hover:text-white/75"
-          }`}
-        >
-          ✦ Absorbed
-        </button>
+      <div
+        className={`transition-opacity duration-300 ${
+          focusMode
+            ? "pointer-events-none opacity-0"
+            : "pointer-events-none opacity-100"
+        }`}
+      >
+        {showAbsorbed ? (
+          <AbsorbedBurnOverlay
+            receiverTokenId={tokenId}
+            hover={absorbedHoverScreen}
+            selectedTokenId={absorbedSelectedTokenId}
+            onClose={() => setAbsorbedSelectedTokenId(null)}
+          />
+        ) : null}
+
+        <div className="fixed inset-0 z-10">
+          <Link
+            href="/"
+            className="pointer-events-auto absolute left-6 top-6 text-sm text-white/50 transition hover:text-white/75"
+          >
+            ← Normies Universe
+          </Link>
+          {state.status === "ready" ? (
+            <div className="pointer-events-auto absolute right-6 top-6 flex items-center gap-4">
+              <button
+                type="button"
+                onClick={enterFocusMode}
+                className="text-sm text-white/50 transition hover:text-white/75"
+              >
+                ✦ Focus
+              </button>
+              {totalAbsorbed !== null && totalAbsorbed > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAbsorbed((on) => {
+                      if (on) {
+                        setAbsorbedHover(null);
+                        setAbsorbedHoverScreen(null);
+                        setAbsorbedSelectedTokenId(null);
+                      }
+                      return !on;
+                    });
+                  }}
+                  className={`text-sm transition hover:text-white/75 ${
+                    showAbsorbed ? "text-white/75" : "text-white/50"
+                  }`}
+                >
+                  ✦ Absorbed
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <NormieProfilePanel
+          tokenId={tokenId}
+          totalAbsorbed={totalAbsorbed}
+          focusMode={focusMode}
+        />
       </div>
 
       {state.status === "loading" ? (
