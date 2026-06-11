@@ -6,6 +6,9 @@ import AbsorbedBurnOverlay from "@/components/starform/AbsorbedBurnOverlay";
 import type { AbsorbedHoverPayload } from "@/components/starform/AbsorbedBurnStars";
 import NormieProfilePanel from "@/components/starform/NormieProfilePanel";
 import StarformScene from "@/components/starform/StarformScene";
+import HyperspaceTransition, {
+  STARFORM_HYPERSPACE_ACTIVE,
+} from "@/components/ui/HyperspaceTransition";
 import { generateConstellation } from "@/lib/universe/generateConstellation";
 
 interface StarformViewProps {
@@ -28,8 +31,11 @@ export default function StarformView({ tokenId }: StarformViewProps) {
   const [showAbsorbed, setShowAbsorbed] = useState(false);
   const [totalAbsorbed, setTotalAbsorbed] = useState<number | null>(null);
   const [focusMode, setFocusMode] = useState(false);
-  const [isSkyMode, setIsSkyMode] = useState(false);
+  const [isSkyMode, setIsSkyMode] = useState(true);
   const backgroundColor = isSkyMode ? "#000000" : "#050a15";
+  const [hyperspaceActive, setHyperspaceActive] = useState(
+    () => sessionStorage.getItem(STARFORM_HYPERSPACE_ACTIVE) === "1",
+  );
 
   const handleAbsorbedHover = useCallback(
     (payload: AbsorbedHoverPayload | null) => {
@@ -44,6 +50,12 @@ export default function StarformView({ tokenId }: StarformViewProps) {
     setAbsorbedHover(null);
     setAbsorbedHoverScreen(null);
   }, []);
+
+  useEffect(() => {
+    setHyperspaceActive(
+      sessionStorage.getItem(STARFORM_HYPERSPACE_ACTIVE) === "1",
+    );
+  }, [tokenId]);
 
   useEffect(() => {
     setAbsorbedHover(null);
@@ -215,7 +227,7 @@ export default function StarformView({ tokenId }: StarformViewProps) {
         />
       </div>
 
-      {state.status === "loading" ? (
+      {state.status === "loading" && !hyperspaceActive ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="text-sm text-white/35">Loading constellation…</p>
         </div>
@@ -225,6 +237,15 @@ export default function StarformView({ tokenId }: StarformViewProps) {
         <div className="absolute inset-0 flex items-center justify-center px-6">
           <p className="text-center text-sm text-white/45">{state.message}</p>
         </div>
+      ) : null}
+
+      {hyperspaceActive ? (
+        <HyperspaceTransition
+          onComplete={() => {
+            sessionStorage.removeItem(STARFORM_HYPERSPACE_ACTIVE);
+            setHyperspaceActive(false);
+          }}
+        />
       ) : null}
     </div>
   );
