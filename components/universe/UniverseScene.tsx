@@ -343,7 +343,13 @@ function SceneContent({
   );
 }
 
-export default function UniverseScene() {
+interface UniverseSceneProps {
+  initialBurnerData?: BurnersApiResponse | null;
+}
+
+export default function UniverseScene({
+  initialBurnerData = null,
+}: UniverseSceneProps) {
   const reducedMotion = useReducedMotion();
   const isMobile = useIsMobile();
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
@@ -371,7 +377,7 @@ export default function UniverseScene() {
   const [burnerStars, setBurnerStars] = useState<BurnerStar[]>([]);
   const [rankedHolders, setRankedHolders] = useState<RankedHolder[]>([]);
   const [burnerData, setBurnerData] = useState<BurnersApiResponse | null>(
-    null,
+    initialBurnerData,
   );
   const burnerCaptureRef = useRef(false);
 
@@ -410,6 +416,8 @@ export default function UniverseScene() {
   }, []);
 
   useEffect(() => {
+    if (initialBurnerData) return;
+
     let cancelled = false;
 
     fetch("/api/burners")
@@ -426,7 +434,7 @@ export default function UniverseScene() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialBurnerData]);
 
   useEffect(() => {
     if (!rankedHolders.length) return;

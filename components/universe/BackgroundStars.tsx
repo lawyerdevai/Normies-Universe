@@ -6,8 +6,15 @@ import * as THREE from "three";
 import { createRng } from "@/lib/universe/seededRandom";
 
 /** Three-layer deep-space field (same approach as Starform ViewportBleedStars). */
-const SHELL_RADIUS_MIN = 150;
-const SHELL_RADIUS_MAX = 300;
+const SHELL_RADIUS_MIN = 120;
+const SHELL_RADIUS_MAX = 420;
+
+/** Uniform random radius in the spherical shell volume — no thin surface boundary. */
+function randomShellRadius(rng: () => number) {
+  const min3 = SHELL_RADIUS_MIN ** 3;
+  const max3 = SHELL_RADIUS_MAX ** 3;
+  return Math.cbrt(min3 + rng() * (max3 - min3));
+}
 
 const BRIGHTNESS_FLOOR = 0.05;
 
@@ -146,9 +153,7 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
       for (let i = 0; i < layer.count; i++) {
         const theta = rng() * Math.PI * 2;
         const phi = Math.acos(2 * rng() - 1);
-        const r =
-          SHELL_RADIUS_MIN +
-          rng() * (SHELL_RADIUS_MAX - SHELL_RADIUS_MIN);
+        const r = randomShellRadius(rng);
         const idx = offset + i;
         positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
         positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.3;

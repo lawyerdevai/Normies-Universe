@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import UniverseScene from "@/components/universe/UniverseScene";
+import { fetchBurnersData } from "@/lib/universe/fetchBurnersData";
 
-export default function Home() {
+export default async function Home() {
+  const initialBurnerData = await fetchBurnersData().catch(() => null);
+
   return (
     <Suspense
       fallback={
@@ -12,7 +15,7 @@ export default function Home() {
         </div>
       }
     >
-      <UniverseScene />
+      <UniverseScene initialBurnerData={initialBurnerData} />
     </Suspense>
   );
 }
