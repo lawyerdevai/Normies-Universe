@@ -126,16 +126,30 @@ export default function CameraRig({
     });
   };
 
+  const searchFocusX = searchFocus?.[0];
+  const searchFocusY = searchFocus?.[1];
+  const searchFocusZ = searchFocus?.[2];
+  const viewportHeight = size.height;
+
   useEffect(() => {
-    if (searchFocus) {
+    if (
+      searchFocusX !== undefined &&
+      searchFocusY !== undefined &&
+      searchFocusZ !== undefined
+    ) {
+      const searchPosition: [number, number, number] = [
+        searchFocusX,
+        searchFocusY,
+        searchFocusZ,
+      ];
       const controls = controlsRef.current as { target: THREE.Vector3 } | null;
       const controlsTarget =
         controls?.target.clone() ?? DEFAULT_CAMERA_TARGET.clone();
       const { camera: camPos, target } = cameraPoseForSearch(
-        searchFocus,
+        searchPosition,
         camera as THREE.PerspectiveCamera,
         controlsTarget,
-        size.height,
+        viewportHeight,
       );
       const duration = reducedMotion ? 0.01 : 2.1;
       animateTo(camPos, target, duration);
@@ -162,17 +176,25 @@ export default function CameraRig({
       );
     }
   }, [
-    searchFocus,
+    searchFocusX,
+    searchFocusY,
+    searchFocusZ,
     searchFocusKey,
     resetKey,
     reducedMotion,
     camera,
     controlsRef,
-    size.height,
+    viewportHeight,
   ]);
 
   useFrame(({ clock }) => {
-    if (reducedMotion || animating.current || searchFocus) {
+    if (
+      reducedMotion ||
+      animating.current ||
+      (searchFocusX !== undefined &&
+        searchFocusY !== undefined &&
+        searchFocusZ !== undefined)
+    ) {
       return;
     }
 
