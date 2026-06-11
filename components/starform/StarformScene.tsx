@@ -8,16 +8,14 @@ import {
   ConstellationFace,
   ViewportBleedStars,
 } from "@/components/starform/ConstellationPoints";
-import {
-  DEFAULT_CAMERA_FAR,
-  DEFAULT_CAMERA_FOV,
-  DEFAULT_CAMERA_NEAR,
-} from "@/lib/universe/cameraConfig";
+import { DEFAULT_CAMERA_FOV } from "@/lib/universe/cameraConfig";
 import type { ConstellationData } from "@/lib/universe/generateConstellation";
 
 const GRID_SIZE = 40;
 const VIEWPORT_HEIGHT_FRACTION = 0.75;
 const CAMERA_Z = 50;
+const CAMERA_NEAR = 0.01;
+const CAMERA_FAR = 10000;
 const BACKGROUND = "#050a15";
 const Y_OFFSET_FRACTION = 0.05;
 
@@ -64,8 +62,8 @@ export default function StarformScene({
       camera={{
         position: [0, 0, CAMERA_Z],
         fov: DEFAULT_CAMERA_FOV,
-        near: DEFAULT_CAMERA_NEAR,
-        far: DEFAULT_CAMERA_FAR,
+        near: CAMERA_NEAR,
+        far: CAMERA_FAR,
       }}
       gl={{
         antialias: true,

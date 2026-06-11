@@ -1,9 +1,7 @@
 "use client";
 
-import { useThree } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
-import { DEFAULT_CAMERA_FOV } from "@/lib/universe/cameraConfig";
 import { createHolderStarPointMaterial } from "@/lib/universe/holderStarPointShader";
 import { createRng } from "@/lib/universe/seededRandom";
 import type {
@@ -17,11 +15,13 @@ const COLOR_WHITE = new THREE.Color("#FFFFFF");
 const COLOR_WARM = new THREE.Color("#FFF8F0");
 const BASE_SIZE = 3.5;
 const BLEED_STAR_COUNT = 800;
-const CAMERA_Z = 50;
+const BLEED_SPHERE_MIN_RADIUS = 520;
+const BLEED_SPHERE_RADIUS_SPAN = 380;
 
 type BleedStar = {
   x: number;
   y: number;
+  z: number;
   brightness: number;
   size: number;
 };
@@ -59,17 +59,20 @@ function bleedVisual(star: BleedStar) {
   };
 }
 
-function generateBleedStars(tokenId: number, aspect: number): BleedStar[] {
+function generateBleedStars(tokenId: number): BleedStar[] {
   const rng = createRng(tokenId * 41_973 + 17);
-  const fovRad = (DEFAULT_CAMERA_FOV * Math.PI) / 180;
-  const visibleHeight = 2 * Math.tan(fovRad / 2) * CAMERA_Z;
-  const visibleWidth = visibleHeight * aspect;
   const bleed: BleedStar[] = [];
 
   for (let i = 0; i < BLEED_STAR_COUNT; i++) {
+    const theta = rng() * Math.PI * 2;
+    const phi = Math.acos(2 * rng() - 1);
+    const radius = BLEED_SPHERE_MIN_RADIUS + rng() * BLEED_SPHERE_RADIUS_SPAN;
+    const sinPhi = Math.sin(phi);
+
     bleed.push({
-      x: (rng() - 0.5) * visibleWidth * 1.1,
-      y: (rng() - 0.5) * visibleHeight * 1.1,
+      x: radius * sinPhi * Math.cos(theta),
+      y: radius * sinPhi * Math.sin(theta),
+      z: radius * Math.cos(phi),
       brightness: 0.05 + rng() * 0.25,
       size: 0.15 + rng() * 0.75,
     });
@@ -136,7 +139,7 @@ function buildBleedGeometry(bleedStars: BleedStar[]) {
   bleedStars.forEach((star, i) => {
     positions[i * 3] = star.x;
     positions[i * 3 + 1] = star.y;
-    positions[i * 3 + 2] = 0;
+    positions[i * 3 + 2] = star.z;
 
     const visual = bleedVisual(star);
     const color = COLOR_COOL.clone().lerp(COLOR_WHITE, visual.brightness * 0.35);
@@ -194,13 +197,9 @@ export function ConstellationFace({
 }
 
 export function ViewportBleedStars({ tokenId }: { tokenId: number }) {
-  const { size } = useThree();
   const material = useMemo(() => createHolderStarPointMaterial(true), []);
 
-  const bleedStars = useMemo(
-    () => generateBleedStars(tokenId, size.width / size.height),
-    [tokenId, size.width, size.height],
-  );
+  const bleedStars = useMemo(() => generateBleedStars(tokenId), [tokenId]);
 
   const geometry = useMemo(
     () => buildBleedGeometry(bleedStars),
