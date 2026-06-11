@@ -3,7 +3,6 @@
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
-import BackgroundStars from "@/components/universe/BackgroundStars";
 import {
   ConstellationFace,
   ViewportBleedStars,
@@ -46,7 +45,7 @@ function ConstellationField({
       <ViewportBleedStars tokenId={tokenId} />
       <group position={[0, yOffset, 0]}>
         <group scale={[scale, scale, 1]}>
-          <ConstellationFace constellation={constellation} />
+          <ConstellationFace constellation={constellation} tokenId={tokenId} />
         </group>
       </group>
     </>
@@ -74,7 +73,6 @@ export default function StarformScene({
       className="absolute inset-0"
     >
       <color attach="background" args={[BACKGROUND]} />
-      <BackgroundStars />
       <ConstellationField constellation={constellation} tokenId={tokenId} />
     </Canvas>
   );
