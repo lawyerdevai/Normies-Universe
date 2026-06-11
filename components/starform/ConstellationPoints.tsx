@@ -20,35 +20,43 @@ const CAMERA_Z = 50;
 
 const FIELD_LAYERS = [
   {
-    count: 5000,
+    count: 12000,
     seedOffset: 11,
-    brightness: [0.05, 0.15] as [number, number],
+    brightness: [0.04, 0.18] as [number, number],
     size: [0.1, 0.25] as [number, number],
     twinkleRate: 0,
   },
   {
-    count: 1200,
+    count: 3000,
     seedOffset: 23,
-    brightness: [0.15, 0.32] as [number, number],
+    brightness: [0.18, 0.38] as [number, number],
     size: [0.2, 0.5] as [number, number],
-    twinkleRate: 0.15,
-    twinkleLift: 0.6,
-    twinkleCycle: [2, 5] as [number, number],
+    twinkleRate: 0.25,
+    twinkleLift: 0.8,
+    twinkleCycle: [1.5, 4] as [number, number],
   },
   {
-    count: 150,
+    count: 300,
     seedOffset: 37,
-    brightness: [0.35, 0.65] as [number, number],
+    brightness: [0.4, 0.75] as [number, number],
     size: [0.4, 0.85] as [number, number],
-    twinkleRate: 0.15,
-    twinkleLift: 0.6,
-    twinkleCycle: [2, 5] as [number, number],
+    twinkleRate: 0.25,
+    twinkleLift: 0.8,
+    twinkleCycle: [1.5, 4] as [number, number],
   },
 ] as const;
 
-const CONSTELLATION_TWINKLE_RATE = 0.12;
-const CONSTELLATION_TWINKLE_LIFT = 0.5;
-const CONSTELLATION_TWINKLE_CYCLE = [3, 7] as const;
+const PULSE_RATE = 0.2;
+const PULSE_LIFT = 0.5;
+const PULSE_CYCLE = [4, 8] as const;
+const BLINK_RATE = 0.08;
+const BLINK_INTERVAL = [6, 12] as const;
+const BLINK_RISE_SECONDS = 0.3;
+const BLINK_FALL_SECONDS = 0.8;
+const BLINK_PEAK_MULTIPLIER = 2;
+const FADE_RATE = 0.05;
+const FADE_MIN_MULTIPLIER = 0.15;
+const FADE_HALF_CYCLE_SECONDS = 3;
 
 type FieldStar = {
   x: number;
@@ -66,11 +74,37 @@ type TwinkleEntry = {
   lift: number;
 };
 
-function twinkleSpeed(cycleMin: number, cycleMax: number, rng: () => number) {
+type PulseEffect = {
+  index: number;
+  phase: number;
+  speed: number;
+};
+
+type BlinkEffect = {
+  index: number;
+  nextBlinkAt: number;
+  blinkStart: number;
+  nextInterval: () => number;
+};
+
+type FadeEffect = {
+  index: number;
+  phase: number;
+};
+
+type ConstellationLife = {
+  bases: Float32Array;
+  pulses: PulseEffect[];
+  blinks: BlinkEffect[];
+  fades: FadeEffect[];
+  affected: Uint8Array;
+};
+
+function cycleSpeed(cycleMin: number, cycleMax: number, rng: () => number) {
   return (Math.PI * 2) / (cycleMin + rng() * (cycleMax - cycleMin));
 }
 
-function applyTwinkle(
+function applyFieldTwinkle(
   geometry: THREE.BufferGeometry,
   entries: TwinkleEntry[],
   elapsed: number,
@@ -87,6 +121,79 @@ function applyTwinkle(
     const next = entry.baseBrightness * (1.0 + lift * entry.lift);
     if (attr.getX(entry.index) !== next) {
       attr.setX(entry.index, next);
+      dirty = true;
+    }
+  }
+
+  if (dirty) attr.needsUpdate = true;
+}
+
+function blinkMultiplier(elapsed: number, blinkStart: number) {
+  const t = elapsed - blinkStart;
+  if (t < BLINK_RISE_SECONDS) {
+    const p = t / BLINK_RISE_SECONDS;
+    return 1 + p * (BLINK_PEAK_MULTIPLIER - 1);
+  }
+  const fallDuration = BLINK_RISE_SECONDS + BLINK_FALL_SECONDS;
+  if (t < fallDuration) {
+    const p = (t - BLINK_RISE_SECONDS) / BLINK_FALL_SECONDS;
+    return BLINK_PEAK_MULTIPLIER - p * (BLINK_PEAK_MULTIPLIER - 1);
+  }
+  return 1;
+}
+
+function fadeMultiplier(elapsed: number, phase: number) {
+  const period = FADE_HALF_CYCLE_SECONDS * 2;
+  const t = ((elapsed + phase) % period) / period;
+  if (t < 0.5) {
+    const p = t * 2;
+    return 1 - p * (1 - FADE_MIN_MULTIPLIER);
+  }
+  const p = (t - 0.5) * 2;
+  return FADE_MIN_MULTIPLIER + p * (1 - FADE_MIN_MULTIPLIER);
+}
+
+function applyConstellationLife(
+  geometry: THREE.BufferGeometry,
+  life: ConstellationLife,
+  elapsed: number,
+) {
+  if (life.affected.length === 0) return;
+
+  const attr = geometry.getAttribute("aBrightness") as THREE.BufferAttribute;
+  if (!attr) return;
+
+  const multipliers = new Float32Array(life.bases.length).fill(1);
+
+  for (const pulse of life.pulses) {
+    const lift = Math.max(0, Math.sin(elapsed * pulse.speed + pulse.phase));
+    multipliers[pulse.index] *= 1 + PULSE_LIFT * lift;
+  }
+
+  for (const blink of life.blinks) {
+    if (blink.blinkStart < 0 && elapsed >= blink.nextBlinkAt) {
+      blink.blinkStart = elapsed;
+    }
+    if (blink.blinkStart >= 0) {
+      multipliers[blink.index] *= blinkMultiplier(elapsed, blink.blinkStart);
+      if (elapsed - blink.blinkStart >= BLINK_RISE_SECONDS + BLINK_FALL_SECONDS) {
+        blink.blinkStart = -1;
+        blink.nextBlinkAt = elapsed + blink.nextInterval();
+      }
+    }
+  }
+
+  for (const fade of life.fades) {
+    multipliers[fade.index] *= fadeMultiplier(elapsed, fade.phase);
+  }
+
+  let dirty = false;
+
+  for (let i = 0; i < life.bases.length; i++) {
+    if (!life.affected[i]) continue;
+    const next = life.bases[i] * multipliers[i];
+    if (attr.getX(i) !== next) {
+      attr.setX(i, next);
       dirty = true;
     }
   }
@@ -164,7 +271,7 @@ function generateFieldStars(
           index,
           baseBrightness: brightness,
           phase: rng() * Math.PI * 2,
-          speed: twinkleSpeed(layer.twinkleCycle[0], layer.twinkleCycle[1], rng),
+          speed: cycleSpeed(layer.twinkleCycle[0], layer.twinkleCycle[1], rng),
           lift: layer.twinkleLift,
         });
       }
@@ -174,29 +281,52 @@ function generateFieldStars(
   return { stars, twinkle };
 }
 
-function generateConstellationTwinkle(
+function generateConstellationLife(
   stars: ConstellationStar[],
   tokenId: number,
-): TwinkleEntry[] {
+): ConstellationLife {
   const rng = createRng(tokenId * 61_331 + 91);
-  const twinkle: TwinkleEntry[] = [];
+  const bases = new Float32Array(stars.length);
+  const affected = new Uint8Array(stars.length);
+  const pulses: PulseEffect[] = [];
+  const blinks: BlinkEffect[] = [];
+  const fades: FadeEffect[] = [];
 
   for (let i = 0; i < stars.length; i++) {
-    if (rng() >= CONSTELLATION_TWINKLE_RATE) continue;
-    twinkle.push({
-      index: i,
-      baseBrightness: stars[i].brightness,
-      phase: rng() * Math.PI * 2,
-      speed: twinkleSpeed(
-        CONSTELLATION_TWINKLE_CYCLE[0],
-        CONSTELLATION_TWINKLE_CYCLE[1],
-        rng,
-      ),
-      lift: CONSTELLATION_TWINKLE_LIFT,
-    });
+    bases[i] = stars[i].brightness;
+
+    if (rng() < PULSE_RATE) {
+      affected[i] = 1;
+      pulses.push({
+        index: i,
+        phase: rng() * Math.PI * 2,
+        speed: cycleSpeed(PULSE_CYCLE[0], PULSE_CYCLE[1], rng),
+      });
+    }
+
+    if (rng() < BLINK_RATE) {
+      affected[i] = 1;
+      const blinkRng = createRng(tokenId * 97_003 + i * 131);
+      blinks.push({
+        index: i,
+        nextBlinkAt: blinkRng() * BLINK_INTERVAL[1],
+        blinkStart: -1,
+        nextInterval: () =>
+          BLINK_INTERVAL[0] +
+          blinkRng() * (BLINK_INTERVAL[1] - BLINK_INTERVAL[0]),
+      });
+    }
+
+    if (rng() < FADE_RATE) {
+      affected[i] = 1;
+      fades.push({
+        index: i,
+        phase: rng() * FADE_HALF_CYCLE_SECONDS * 2,
+      });
+    }
   }
 
-  return twinkle;
+  return { bases, pulses, blinks, fades, affected };
 }
 
 function buildGeometry(stars: ConstellationStar[], sizeScale: number) {
@@ -299,22 +429,23 @@ export function ConstellationFace({
   tokenId: number;
 }) {
   const material = useMemo(() => createHolderStarPointMaterial(true), []);
-  const twinkleRef = useRef<TwinkleEntry[]>([]);
+  const lifeRef = useRef<ConstellationLife | null>(null);
 
   const geometry = useMemo(
     () => buildGeometry(constellation.stars, constellation.sizeScale),
     [constellation.stars, constellation.sizeScale],
   );
 
-  const twinkle = useMemo(
-    () => generateConstellationTwinkle(constellation.stars, tokenId),
+  const life = useMemo(
+    () => generateConstellationLife(constellation.stars, tokenId),
     [constellation.stars, tokenId],
   );
 
-  twinkleRef.current = twinkle;
+  lifeRef.current = life;
 
   useFrame(({ clock }) => {
-    applyTwinkle(geometry, twinkleRef.current, clock.elapsedTime);
+    if (!lifeRef.current) return;
+    applyConstellationLife(geometry, lifeRef.current, clock.elapsedTime);
   });
 
   if (constellation.stars.length === 0) return null;
@@ -347,7 +478,7 @@ export function ViewportBleedStars({ tokenId }: { tokenId: number }) {
   );
 
   useFrame(({ clock }) => {
-    applyTwinkle(geometry, twinkleRef.current, clock.elapsedTime);
+    applyFieldTwinkle(geometry, twinkleRef.current, clock.elapsedTime);
   });
 
   return (
