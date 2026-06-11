@@ -47,6 +47,7 @@ import {
   getHolderGroups,
   verifyAssignment,
 } from "@/lib/universe";
+import type { HolderSearchMatch } from "@/lib/universe/searchHolderStars";
 import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
 import { parseSearchQuery } from "@/lib/universe/resolveSearch";
 import type { RankedHolder } from "@/lib/opensea/holders";
@@ -118,6 +119,12 @@ function burnerToWalletSelection(star: BurnerStar): WalletSelection {
   };
 }
 
+function searchFocusPosition(
+  match: HolderSearchMatch,
+): [number, number, number] {
+  return [...match.star.position];
+}
+
 function searchedStarIndex(
   groups: HolderGroupStar[],
   foundStar: FoundStarState | null,
@@ -142,6 +149,8 @@ function SceneContent({
   dimKey,
   foundStar,
   outerHighlight,
+  searchFocus,
+  searchFocusKey,
   reducedMotion,
   isMobile,
   controlsRef,
@@ -169,6 +178,8 @@ function SceneContent({
   dimKey: number;
   foundStar: FoundStarState | null;
   outerHighlight: OuterHighlightState | null;
+  searchFocus: [number, number, number] | null;
+  searchFocusKey: number;
   reducedMotion: boolean;
   isMobile: boolean;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
@@ -276,6 +287,8 @@ function SceneContent({
         reducedMotion={reducedMotion}
         controlsRef={controlsRef}
         resetKey={resetKey}
+        searchFocus={searchFocus}
+        searchFocusKey={searchFocusKey}
       />
       <CameraResetHandler onReset={onResetCamera} />
 
@@ -451,6 +464,10 @@ export default function UniverseScene() {
   const [foundStar, setFoundStar] = useState<FoundStarState | null>(null);
   const [outerHighlight, setOuterHighlight] =
     useState<OuterHighlightState | null>(null);
+  const [searchFocus, setSearchFocus] = useState<
+    [number, number, number] | null
+  >(null);
+  const [searchFocusKey, setSearchFocusKey] = useState(0);
   const [totalBurned, setTotalBurned] = useState<number | null>(null);
 
   useEffect(() => {
@@ -475,6 +492,7 @@ export default function UniverseScene() {
   const deactivateSearchHighlights = useCallback(() => {
     setFoundStar((prev) => (prev ? { ...prev, active: false } : null));
     setOuterHighlight((prev) => (prev ? { ...prev, active: false } : null));
+    setSearchFocus(null);
   }, []);
 
   const handleHover = useCallback(
@@ -548,12 +566,15 @@ export default function UniverseScene() {
     setHoveredBurner(null);
     setHoveredCore(false);
     setTooltipPos(null);
+    deactivateSearchHighlights();
     setResetKey((k) => k + 1);
-  }, []);
+  }, [deactivateSearchHighlights]);
 
   const activateHolderSearch = useCallback(
     (match: NonNullable<ReturnType<typeof findHolderByWallet>>) => {
       setDimKey((k) => k + 1);
+      setSearchFocus(searchFocusPosition(match));
+      setSearchFocusKey((k) => k + 1);
 
       if (match.kind === "top75") {
         setOuterHighlight(null);
@@ -570,8 +591,11 @@ export default function UniverseScene() {
         });
         setWalletSelection(outerToWalletSelection(match.star));
       } else {
-        setFoundStar(null);
         setOuterHighlight(null);
+        setFoundStar({
+          position: [...match.star.position],
+          active: true,
+        });
         setWalletSelection(burnerToWalletSelection(match.star));
       }
       setPyreOpen(false);
@@ -699,6 +723,8 @@ export default function UniverseScene() {
           dimKey={dimKey}
           foundStar={foundStar}
           outerHighlight={outerHighlight}
+          searchFocus={searchFocus}
+          searchFocusKey={searchFocusKey}
           hoveredCore={hoveredCore}
           reducedMotion={reducedMotion}
           isMobile={isMobile}
