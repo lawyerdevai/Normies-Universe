@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import AbsorbedBurnOverlay from "@/components/starform/AbsorbedBurnOverlay";
+import type { AbsorbedHoverPayload } from "@/components/starform/AbsorbedBurnStars";
 import StarformScene from "@/components/starform/StarformScene";
 import { generateConstellation } from "@/lib/universe/generateConstellation";
 
@@ -16,6 +18,34 @@ type LoadState =
 
 export default function StarformView({ tokenId }: StarformViewProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [absorbedHover, setAbsorbedHover] = useState<number | null>(null);
+  const [absorbedHoverScreen, setAbsorbedHoverScreen] =
+    useState<AbsorbedHoverPayload | null>(null);
+  const [absorbedSelectedTokenId, setAbsorbedSelectedTokenId] = useState<
+    number | null
+  >(null);
+  const [showAbsorbed, setShowAbsorbed] = useState(false);
+
+  const handleAbsorbedHover = useCallback(
+    (payload: AbsorbedHoverPayload | null) => {
+      setAbsorbedHover(payload?.tokenId ?? null);
+      setAbsorbedHoverScreen(payload);
+    },
+    [],
+  );
+
+  const handleAbsorbedSelect = useCallback((absorbedTokenId: number) => {
+    setAbsorbedSelectedTokenId(absorbedTokenId);
+    setAbsorbedHover(null);
+    setAbsorbedHoverScreen(null);
+  }, []);
+
+  useEffect(() => {
+    setAbsorbedHover(null);
+    setAbsorbedHoverScreen(null);
+    setAbsorbedSelectedTokenId(null);
+    setShowAbsorbed(false);
+  }, [tokenId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +83,24 @@ export default function StarformView({ tokenId }: StarformViewProps) {
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#050a15]">
       {state.status === "ready" ? (
-        <StarformScene constellation={state.constellation} tokenId={tokenId} />
+        <StarformScene
+          constellation={state.constellation}
+          tokenId={tokenId}
+          showAbsorbed={showAbsorbed}
+          absorbedHoverTokenId={absorbedHover}
+          absorbedSelectedTokenId={absorbedSelectedTokenId}
+          onAbsorbedHover={handleAbsorbedHover}
+          onAbsorbedSelect={handleAbsorbedSelect}
+        />
+      ) : null}
+
+      {showAbsorbed ? (
+        <AbsorbedBurnOverlay
+          receiverTokenId={tokenId}
+          hover={absorbedHoverScreen}
+          selectedTokenId={absorbedSelectedTokenId}
+          onClose={() => setAbsorbedSelectedTokenId(null)}
+        />
       ) : null}
 
       <div className="pointer-events-none fixed inset-0 z-10">
@@ -63,6 +110,26 @@ export default function StarformView({ tokenId }: StarformViewProps) {
         >
           ← Normies Universe
         </Link>
+        <button
+          type="button"
+          onClick={() => {
+            setShowAbsorbed((on) => {
+              if (on) {
+                setAbsorbedHover(null);
+                setAbsorbedHoverScreen(null);
+                setAbsorbedSelectedTokenId(null);
+              }
+              return !on;
+            });
+          }}
+          className={`pointer-events-auto absolute right-6 top-6 text-sm transition ${
+            showAbsorbed
+              ? "text-white/75 hover:text-white/90"
+              : "text-white/50 hover:text-white/75"
+          }`}
+        >
+          ✦ Absorbed
+        </button>
       </div>
 
       {state.status === "loading" ? (
