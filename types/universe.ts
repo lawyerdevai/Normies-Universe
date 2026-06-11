@@ -85,7 +85,7 @@ export type WalletSelection = {
 export type LocatorTarget =
   | {
       kind: "holder";
-      starKind: "top75" | "outer";
+      starKind: "top75" | "outer" | "burner";
       wallet: string;
       walletDisplay: string;
       normieCount: number;

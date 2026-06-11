@@ -1,11 +1,16 @@
-import type { HolderGroupStar, OuterHolderStar } from "@/types/universe";
+import type {
+  BurnerStar,
+  HolderGroupStar,
+  OuterHolderStar,
+} from "@/types/universe";
 import { normalizeWalletAddress } from "./normalizeWalletAddress";
 
 export { normalizeWalletAddress } from "./normalizeWalletAddress";
 
 export type HolderSearchMatch =
   | { kind: "top75"; star: HolderGroupStar }
-  | { kind: "outer"; star: OuterHolderStar };
+  | { kind: "outer"; star: OuterHolderStar }
+  | { kind: "burner"; star: BurnerStar };
 
 function walletKey(wallet: string | undefined): string | null {
   if (!wallet) return null;
@@ -23,6 +28,7 @@ export function findHolderByWallet(
   query: string,
   holderGroups: HolderGroupStar[],
   outerStars: OuterHolderStar[],
+  burnerStars: BurnerStar[] = [],
 ): HolderSearchMatch | null {
   const queryKey = normalizeWalletAddress(query);
   if (!queryKey) return null;
@@ -38,6 +44,13 @@ export function findHolderByWallet(
     const key = walletKey(star.wallet ?? star.id);
     if (key && walletMatchesQuery(queryKey, key)) {
       return { kind: "outer", star };
+    }
+  }
+
+  for (const star of burnerStars) {
+    const key = walletKey(star.wallet);
+    if (key && walletMatchesQuery(queryKey, key)) {
+      return { kind: "burner", star };
     }
   }
 
