@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
+import { STARFORM_HYPERSPACE_ACTIVE } from "@/components/ui/HyperspaceTransition";
 import {
   PANEL_ACCENT,
   panelAccentLine,
@@ -26,7 +35,13 @@ interface WalletDetailPanelProps {
   onClose: () => void;
 }
 
-function NormieThumbnail({ id }: { id: string }) {
+function NormieThumbnail({
+  id,
+  onActivate,
+}: {
+  id: string;
+  onActivate: (id: string, event: MouseEvent<HTMLAnchorElement>) => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -50,8 +65,15 @@ function NormieThumbnail({ id }: { id: string }) {
   }, []);
 
   return (
-    <div ref={ref} className="flex flex-col items-center gap-0.5">
-      <div className="relative aspect-square w-full overflow-hidden rounded-[4px] bg-white/[0.03]">
+    <a
+      href={`/starform/${id}`}
+      onClick={(event) => onActivate(id, event)}
+      className="group flex cursor-pointer flex-col items-center gap-0.5"
+    >
+      <div
+        ref={ref}
+        className="relative aspect-square w-full overflow-hidden rounded-[4px] bg-white/[0.03]"
+      >
         {inView ? (
           <>
             {!loaded ? (
@@ -63,7 +85,7 @@ function NormieThumbnail({ id }: { id: string }) {
               loading="lazy"
               decoding="async"
               onLoad={() => setLoaded(true)}
-              className={`h-full w-full rounded-[4px] object-cover transition-opacity duration-300 ${
+              className={`h-full w-full rounded-[4px] object-cover transition duration-300 group-hover:brightness-110 ${
                 loaded ? "opacity-100" : "opacity-0"
               }`}
             />
@@ -73,7 +95,7 @@ function NormieThumbnail({ id }: { id: string }) {
         )}
       </div>
       <span className="text-[9px] tabular-nums text-white/40">#{id}</span>
-    </div>
+    </a>
   );
 }
 
@@ -85,6 +107,16 @@ export default function WalletDetailPanel({
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const router = useRouter();
+
+  const handleThumbnailActivate = useCallback(
+    (id: string, event: MouseEvent<HTMLAnchorElement>) => {
+      event.preventDefault();
+      sessionStorage.setItem(STARFORM_HYPERSPACE_ACTIVE, "1");
+      router.push(`/starform/${id}`);
+    },
+    [router],
+  );
 
   const wallet = selection?.wallet ?? "";
   const walletDisplay = selection?.walletDisplay ?? "";
@@ -202,7 +234,11 @@ export default function WalletDetailPanel({
         {sortedTokenIds.length > 0 ? (
           <div className="grid grid-cols-3 gap-1.5">
             {sortedTokenIds.map((id) => (
-              <NormieThumbnail key={id} id={id} />
+              <NormieThumbnail
+                key={id}
+                id={id}
+                onActivate={handleThumbnailActivate}
+              />
             ))}
           </div>
         ) : null}
