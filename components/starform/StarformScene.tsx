@@ -18,7 +18,7 @@ const VIEWPORT_HEIGHT_FRACTION = 0.75;
 const CAMERA_Z = 50;
 const ARRIVAL_START_Z = 8;
 const ARRIVAL_DURATION = 2;
-const CONSTELLATION_FADE_DURATION = 0.5;
+const DEPARTURE_DURATION = 1.5;
 const CAMERA_NEAR = 0.01;
 const CAMERA_FAR = 10000;
 export const STARFORM_BACKGROUND_SPACE = "#050a15";
@@ -75,6 +75,32 @@ function ArrivalCamera() {
   return null;
 }
 
+function DepartureCamera({ onComplete }: { onComplete: () => void }) {
+  const { camera } = useThree();
+  const startTimeRef = useRef<number | null>(null);
+  const doneRef = useRef(false);
+
+  useFrame((state) => {
+    if (doneRef.current) return;
+
+    if (startTimeRef.current === null) {
+      startTimeRef.current = state.clock.elapsedTime;
+    }
+
+    const elapsed = state.clock.elapsedTime - startTimeRef.current;
+    const t = Math.min(1, elapsed / DEPARTURE_DURATION);
+    const eased = t ** 3;
+    camera.position.z = THREE.MathUtils.lerp(CAMERA_Z, ARRIVAL_START_Z, eased);
+
+    if (t >= 1 && !doneRef.current) {
+      doneRef.current = true;
+      onComplete();
+    }
+  });
+
+  return null;
+}
+
 function ConstellationLayer({
   constellation,
   tokenId,
@@ -94,10 +120,6 @@ function ConstellationLayer({
   onAbsorbedHover: (payload: AbsorbedHoverPayload | null) => void;
   onAbsorbedSelect: (tokenId: number) => void;
 }) {
-  const opacityRef = useRef(0);
-  const constellationMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
-  const absorbedMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
-
   const { scale, yOffset } = useMemo(() => {
     const fovRad = (DEFAULT_CAMERA_FOV * Math.PI) / 180;
     const visibleHeight = 2 * Math.tan(fovRad / 2) * CAMERA_Z;
@@ -108,24 +130,6 @@ function ConstellationLayer({
     };
   }, []);
 
-  useFrame((_, delta) => {
-    const target = reveal ? 1 : 0;
-    const step = delta / CONSTELLATION_FADE_DURATION;
-
-    if (opacityRef.current < target) {
-      opacityRef.current = Math.min(target, opacityRef.current + step);
-    } else if (opacityRef.current > target) {
-      opacityRef.current = Math.max(target, opacityRef.current - step);
-    }
-
-    if (constellationMaterialRef.current) {
-      constellationMaterialRef.current.opacity = opacityRef.current;
-    }
-    if (absorbedMaterialRef.current) {
-      absorbedMaterialRef.current.opacity = opacityRef.current;
-    }
-  });
-
   return (
     <>
       {showAbsorbed ? (
@@ -135,7 +139,6 @@ function ConstellationLayer({
           selectedTokenId={absorbedSelectedTokenId}
           onHover={onAbsorbedHover}
           onSelect={onAbsorbedSelect}
-          materialRef={absorbedMaterialRef}
         />
       ) : null}
       <group position={[0, yOffset, 0]}>
@@ -143,7 +146,7 @@ function ConstellationLayer({
           <ConstellationFace
             constellation={constellation}
             tokenId={tokenId}
-            materialRef={constellationMaterialRef}
+            reveal={reveal}
           />
         </group>
       </group>
@@ -156,6 +159,8 @@ interface StarformSceneProps {
   backgroundColor: string;
   constellation?: ConstellationData;
   constellationReveal: boolean;
+  departing?: boolean;
+  onDepartureComplete?: () => void;
   showAbsorbed: boolean;
   absorbedHoverTokenId: number | null;
   absorbedSelectedTokenId: number | null;
@@ -168,6 +173,8 @@ export default function StarformScene({
   backgroundColor,
   constellation,
   constellationReveal,
+  departing = false,
+  onDepartureComplete,
   showAbsorbed,
   absorbedHoverTokenId,
   absorbedSelectedTokenId,
@@ -192,14 +199,18 @@ export default function StarformScene({
       className="absolute inset-0"
     >
       <TransitionBackground color={backgroundColor} />
-      <ArrivalCamera />
+      {departing && onDepartureComplete ? (
+        <DepartureCamera onComplete={onDepartureComplete} />
+      ) : (
+        <ArrivalCamera />
+      )}
       <ViewportBleedStars tokenId={tokenId} />
       {constellation ? (
         <ConstellationLayer
           constellation={constellation}
           tokenId={tokenId}
-          reveal={constellationReveal}
-          showAbsorbed={showAbsorbed}
+          reveal={constellationReveal && !departing}
+          showAbsorbed={showAbsorbed && !departing}
           absorbedHoverTokenId={absorbedHoverTokenId}
           absorbedSelectedTokenId={absorbedSelectedTokenId}
           onAbsorbedHover={onAbsorbedHover}

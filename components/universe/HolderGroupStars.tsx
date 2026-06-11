@@ -9,6 +9,7 @@ import {
   visualFromHoldings,
   type HolderStarVisual,
 } from "@/lib/universe/holderStarVisual";
+import { useGalaxyRevealRef } from "@/components/universe/GalaxyArrivalController";
 import { createHolderStarPointMaterial } from "@/lib/universe/holderStarPointShader";
 import { isPointerOverPyre } from "@/lib/universe/isPointerOverPyre";
 import type { HolderGroupStar } from "@/types/universe";
@@ -192,6 +193,7 @@ export default function HolderGroupStars({
   skipClickIfBurnerHovered,
   skipHoverIfBurnerCaptured,
 }: HolderGroupStarsProps) {
+  const revealRef = useGalaxyRevealRef();
   const showVisible = debugLayers?.visible ?? true;
   const showGlow = debugLayers?.glow ?? true;
   const showHits = debugLayers?.hits ?? true;
@@ -408,6 +410,8 @@ export default function HolderGroupStars({
         onHover(null);
       }
     }
+
+    material.opacity = revealRef.current.holders;
   });
 
   return (

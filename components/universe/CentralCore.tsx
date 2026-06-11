@@ -11,6 +11,7 @@ import {
 import { isPointerOverPyre } from "@/lib/universe/isPointerOverPyre";
 import type { HolderGroupStar } from "@/types/universe";
 import FusionChargeSparks from "@/components/universe/FusionChargeSparks";
+import { useGalaxyRevealRef } from "@/components/universe/GalaxyArrivalController";
 
 const GALAXY_EULER = new THREE.Euler(0.28, 0.15, 0.35, "XYZ");
 const GALAXY_SCALE = 1.15;
@@ -86,6 +87,7 @@ export default function CentralCore({
   onHover,
 }: CentralCoreProps) {
   const { camera, pointer, size, gl } = useThree();
+  const revealRef = useGalaxyRevealRef();
   const lastPyreHover = useRef(false);
   const pointsRef = useRef<THREE.Points>(null);
   const thunderRef = useRef({
@@ -238,6 +240,7 @@ export default function CentralCore({
     material.uniforms.uFieldPulse.value = reducedMotion
       ? 1
       : fieldPulse * (1 + thunder * 0.1);
+    material.opacity = revealRef.current.core;
 
     if (reducedMotion) return;
 

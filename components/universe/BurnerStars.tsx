@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { hitRadiusForVisual } from "@/lib/universe/holderStarVisual";
+import { useGalaxyRevealRef } from "@/components/universe/GalaxyArrivalController";
 import { createHolderStarPointMaterial } from "@/lib/universe/holderStarPointShader";
 import type { BurnerStar } from "@/types/universe";
 
@@ -91,6 +92,7 @@ export default function BurnerStars({
   captureRef,
 }: BurnerStarsProps) {
   const { camera, pointer, size, gl } = useThree();
+  const revealRef = useGalaxyRevealRef();
   const pointsRef = useRef<THREE.Points>(null);
   const hitRef = useRef<THREE.InstancedMesh>(null);
   const lastHoverId = useRef<string | null>(null);
@@ -219,6 +221,8 @@ export default function BurnerStars({
         onHover(null);
       }
     }
+
+    material.opacity = revealRef.current.outer;
   });
 
   if (stars.length === 0) return null;
