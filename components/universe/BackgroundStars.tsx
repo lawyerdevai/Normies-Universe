@@ -5,11 +5,40 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { createRng } from "@/lib/universe/seededRandom";
 
+/** ~60% of Starform ViewportBleedStars field density (7200 / 1800 / 180). */
 const LAYERS = [
-  { count: 9000, seed: 88001, size: [0.09, 0.32] as [number, number], brightness: [0.1, 0.32] as [number, number], spread: 1.4 },
-  { count: 2800, seed: 88002, size: [0.22, 0.6] as [number, number], brightness: [0.24, 0.64] as [number, number], spread: 1.0 },
-  { count: 900, seed: 88003, size: [0.5, 1.2] as [number, number], brightness: [0.48, 1.28] as [number, number], spread: 0.65 },
+  {
+    count: 7200,
+    seed: 88001,
+    size: [0.1, 0.25] as [number, number],
+    brightness: [0.04, 0.18] as [number, number],
+    spread: 1.4,
+    twinkleRate: 0,
+  },
+  {
+    count: 1800,
+    seed: 88002,
+    size: [0.2, 0.5] as [number, number],
+    brightness: [0.18, 0.38] as [number, number],
+    spread: 1.0,
+    twinkleRate: 0.25,
+    twinkleLift: 0.8,
+    twinkleCycle: [1.5, 4] as [number, number],
+  },
+  {
+    count: 180,
+    seed: 88003,
+    size: [0.4, 0.85] as [number, number],
+    brightness: [0.4, 0.75] as [number, number],
+    spread: 0.65,
+    twinkleRate: 0.25,
+    twinkleLift: 0.8,
+    twinkleCycle: [1.5, 4] as [number, number],
+  },
 ];
+
+const COLOR_COOL = new THREE.Color("#E8F4FF");
+const COLOR_WHITE = new THREE.Color("#FFFFFF");
 
 const vertexShader = /* glsl */ `
   attribute float aSize;
@@ -47,10 +76,15 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
+function cycleSpeed(cycleMin: number, cycleMax: number, rng: () => number) {
+  return (Math.PI * 2) / (cycleMin + rng() * (cycleMax - cycleMin));
+}
+
 type TwinkleMeta = {
   baseBrightness: Float32Array;
   phases: Float32Array;
   speeds: Float32Array;
+  lifts: Float32Array;
   enabled: Uint8Array;
 };
 
@@ -78,6 +112,7 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
     const baseBrightness = new Float32Array(total);
     const phases = new Float32Array(total);
     const speeds = new Float32Array(total);
+    const lifts = new Float32Array(total);
     const twinkleEnabled = new Uint8Array(total);
 
     let offset = 0;
@@ -96,25 +131,25 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
         brightness[idx] = bright;
         baseBrightness[idx] = bright;
 
-        if (rng() < 0.1) {
+        if (
+          layer.twinkleRate > 0 &&
+          rng() < layer.twinkleRate &&
+          "twinkleLift" in layer
+        ) {
           twinkleEnabled[idx] = 1;
           phases[idx] = rng() * Math.PI * 2;
-          const period = 2 + rng();
-          speeds[idx] = (Math.PI * 2) / period;
+          speeds[idx] = cycleSpeed(
+            layer.twinkleCycle[0],
+            layer.twinkleCycle[1],
+            rng,
+          );
+          lifts[idx] = layer.twinkleLift;
         }
 
-        const tint = rng();
-        let cr = 0.76 + tint * 0.06;
-        let cg = 0.78 + tint * 0.05;
-        let cb = 0.82 + tint * 0.07;
-        if (tint > 0.78) {
-          cb += 0.05;
-          cg += 0.015;
-          cr -= 0.015;
-        }
-        colors[idx * 3] = cr;
-        colors[idx * 3 + 1] = cg;
-        colors[idx * 3 + 2] = cb;
+        const color = COLOR_COOL.clone().lerp(COLOR_WHITE, bright * 0.35);
+        colors[idx * 3] = color.r;
+        colors[idx * 3 + 1] = color.g;
+        colors[idx * 3 + 2] = color.b;
       }
       offset += layer.count;
     }
@@ -123,6 +158,7 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
       baseBrightness,
       phases,
       speeds,
+      lifts,
       enabled: twinkleEnabled,
     };
 
@@ -156,14 +192,14 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
     if (!meta || !attr) return;
 
     const t = clock.elapsedTime;
-    const { baseBrightness, phases, speeds, enabled: twinkleOn } = meta;
+    const { baseBrightness, phases, speeds, lifts, enabled: twinkleOn } = meta;
     let dirty = false;
 
     for (let i = 0; i < baseBrightness.length; i++) {
       if (!twinkleOn[i]) continue;
       const wave = Math.sin(t * speeds[i] + phases[i]);
       const lift = Math.max(0, wave);
-      const next = baseBrightness[i] * (1.0 + lift * 0.5);
+      const next = baseBrightness[i] * (1.0 + lift * lifts[i]);
       if (attr.getX(i) !== next) {
         attr.setX(i, next);
         dirty = true;

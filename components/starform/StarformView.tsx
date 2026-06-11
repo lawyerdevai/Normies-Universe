@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import AbsorbedBurnOverlay from "@/components/starform/AbsorbedBurnOverlay";
 import type { AbsorbedHoverPayload } from "@/components/starform/AbsorbedBurnStars";
 import NormieProfilePanel from "@/components/starform/NormieProfilePanel";
 import StarformScene from "@/components/starform/StarformScene";
+import { GALAXY_ARRIVAL_ACTIVE } from "@/lib/universe/galaxyArrival";
 import { generateConstellation } from "@/lib/universe/generateConstellation";
 
 const INTRO_REVEAL_MS = 2000;
@@ -20,7 +21,9 @@ type LoadState =
   | { status: "ready"; constellation: ReturnType<typeof generateConstellation> };
 
 export default function StarformView({ tokenId }: StarformViewProps) {
+  const router = useRouter();
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [departing, setDeparting] = useState(false);
   const [absorbedHover, setAbsorbedHover] = useState<number | null>(null);
   const [absorbedHoverScreen, setAbsorbedHoverScreen] =
     useState<AbsorbedHoverPayload | null>(null);
@@ -124,8 +127,17 @@ export default function StarformView({ tokenId }: StarformViewProps) {
     };
   }, [tokenId]);
 
-  const constellationReveal =
-    introReveal && state.status === "ready";
+  const constellationReveal = state.status === "ready";
+
+  const handleReturn = useCallback(() => {
+    if (departing) return;
+    setDeparting(true);
+  }, [departing]);
+
+  const handleDepartureComplete = useCallback(() => {
+    sessionStorage.setItem(GALAXY_ARRIVAL_ACTIVE, "1");
+    router.push("/");
+  }, [router]);
 
   return (
     <div
@@ -142,6 +154,8 @@ export default function StarformView({ tokenId }: StarformViewProps) {
           state.status === "ready" ? state.constellation : undefined
         }
         constellationReveal={constellationReveal}
+        departing={departing}
+        onDepartureComplete={handleDepartureComplete}
         showAbsorbed={showAbsorbed}
         absorbedHoverTokenId={absorbedHover}
         absorbedSelectedTokenId={absorbedSelectedTokenId}
@@ -177,12 +191,14 @@ export default function StarformView({ tokenId }: StarformViewProps) {
         ) : null}
 
         <div className="fixed inset-0 z-10">
-          <Link
-            href="/"
-            className="normie-universe-title pointer-events-auto absolute left-6 top-6 text-sm text-white/50 transition hover:text-white/75"
+          <button
+            type="button"
+            onClick={handleReturn}
+            disabled={departing}
+            className="normie-universe-title pointer-events-auto absolute left-6 top-6 text-sm text-white/50 transition hover:text-white/75 disabled:opacity-30"
           >
             ← Normies Universe
-          </Link>
+          </button>
           {state.status === "ready" ? (
             <div className="pointer-events-auto absolute right-6 top-6 flex items-center gap-4">
               <button

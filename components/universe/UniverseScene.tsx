@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import BackgroundStars from "@/components/universe/BackgroundStars";
+import GalaxyArrivalController from "@/components/universe/GalaxyArrivalController";
 import CameraResetHandler from "@/components/universe/CameraResetHandler";
 import CameraRig from "@/components/universe/CameraRig";
 import CentralCore from "@/components/universe/CentralCore";
@@ -49,6 +50,7 @@ import {
 } from "@/lib/universe";
 import type { HolderSearchMatch } from "@/lib/universe/searchHolderStars";
 import { normalizeWalletAddress } from "@/lib/universe/normalizeWalletAddress";
+import { GALAXY_ARRIVAL_ACTIVE } from "@/lib/universe/galaxyArrival";
 import { parseSearchQuery } from "@/lib/universe/resolveSearch";
 import type { RankedHolder } from "@/lib/opensea/holders";
 import type {
@@ -168,6 +170,7 @@ function SceneContent({
   onPyreClick,
   onResetCamera,
   totalBurned,
+  arrivalActive,
 }: {
   holderGroups: HolderGroupStar[];
   outerStars: OuterHolderStar[];
@@ -203,6 +206,7 @@ function SceneContent({
   onPyreClick: () => void;
   onResetCamera: () => void;
   totalBurned: number | null;
+  arrivalActive: boolean;
 }) {
   const layerDebug = DEFAULT_LAYER_DEBUG;
 
@@ -285,6 +289,7 @@ function SceneContent({
 
       <CameraRig
         reducedMotion={reducedMotion}
+        arrivalActive={arrivalActive}
         controlsRef={controlsRef}
         resetKey={resetKey}
         searchFocus={searchFocus}
@@ -343,6 +348,21 @@ export default function UniverseScene() {
   const isMobile = useIsMobile();
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const starHoverRef = useRef<HolderGroupStar | null>(null);
+  const [arrivalActive, setArrivalActive] = useState(false);
+
+  useEffect(() => {
+    const fromStarform = sessionStorage.getItem(GALAXY_ARRIVAL_ACTIVE) === "1";
+    if (!fromStarform) return;
+
+    sessionStorage.removeItem(GALAXY_ARRIVAL_ACTIVE);
+    setArrivalActive(true);
+
+    const endTimer = window.setTimeout(() => setArrivalActive(false), 4000);
+
+    return () => {
+      window.clearTimeout(endTimer);
+    };
+  }, []);
 
   const [holderGroups, setHolderGroups] = useState<HolderGroupStar[]>(() =>
     getHolderGroups(),
@@ -695,10 +715,15 @@ export default function UniverseScene() {
         }}
         className="absolute inset-0"
       >
-        <SceneContent
-          holderGroups={holderGroups}
-          outerStars={outerStars}
-          burnerStars={burnerStars}
+        <GalaxyArrivalController
+          active={arrivalActive}
+          controlsRef={controlsRef}
+        >
+          <SceneContent
+            holderGroups={holderGroups}
+            outerStars={outerStars}
+            burnerStars={burnerStars}
+            arrivalActive={arrivalActive}
           hoveredId={hoveredGroup?.id ?? null}
           hoveredBurnerId={hoveredBurner?.id ?? null}
           selectedId={
@@ -741,7 +766,8 @@ export default function UniverseScene() {
           onCoreHover={handleCoreHover}
           onResetCamera={handleResetCamera}
           totalBurned={totalBurned}
-        />
+          />
+        </GalaxyArrivalController>
       </Canvas>
 
       <div className="pointer-events-none fixed inset-0 z-30">

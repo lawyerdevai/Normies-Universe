@@ -1,6 +1,8 @@
 "use client";
 
+import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
+import { useGalaxyRevealRef } from "@/components/universe/GalaxyArrivalController";
 import * as THREE from "three";
 import { ARM_NOISE_SEED } from "@/lib/universe/armDensityNoise";
 import { generateGalaxyAtmosphere } from "@/lib/universe/generateGalaxyAtmosphere";
@@ -51,6 +53,7 @@ interface GalaxyAtmosphereProps {
 export default function GalaxyAtmosphere({
   debugLayers,
 }: GalaxyAtmosphereProps) {
+  const revealRef = useGalaxyRevealRef();
   const pointsRef = useRef<THREE.Points>(null);
   const enabled = debugLayers?.enabled ?? true;
   const showBulge = debugLayers?.bulge ?? true;
@@ -98,6 +101,10 @@ export default function GalaxyAtmosphere({
     if (pointsRef.current) {
       pointsRef.current.raycast = () => {};
     }
+  });
+
+  useFrame(() => {
+    material.opacity = revealRef.current.arms;
   });
 
   if (!enabled) return null;

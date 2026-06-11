@@ -1,10 +1,17 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
+import {
+  buildConstellationRevealSchedule,
+  starRevealMultiplier,
+} from "@/lib/universe/constellationReveal";
 import { DEFAULT_CAMERA_FOV } from "@/lib/universe/cameraConfig";
-import { createHolderStarPointMaterial } from "@/lib/universe/holderStarPointShader";
+import {
+  createConstellationStarPointMaterial,
+  createHolderStarPointMaterial,
+} from "@/lib/universe/holderStarPointShader";
 import { createRng } from "@/lib/universe/seededRandom";
 import type {
   ConstellationData,
@@ -337,6 +344,7 @@ function buildGeometry(stars: ConstellationStar[], sizeScale: number) {
   const glowOpacities = new Float32Array(stars.length);
   const sparkles = new Float32Array(stars.length);
   const brightness = new Float32Array(stars.length);
+  const reveal = new Float32Array(stars.length);
 
   stars.forEach((star, i) => {
     positions[i * 3] = star.x;
@@ -355,6 +363,7 @@ function buildGeometry(stars: ConstellationStar[], sizeScale: number) {
     glowOpacities[i] = visual.glowOpacity;
     sparkles[i] = 0;
     brightness[i] = visual.brightness;
+    reveal[i] = 0;
   });
 
   const geometry = new THREE.BufferGeometry();
@@ -371,6 +380,7 @@ function buildGeometry(stars: ConstellationStar[], sizeScale: number) {
     "aBrightness",
     new THREE.BufferAttribute(brightness, 1),
   );
+  geometry.setAttribute("aReveal", new THREE.BufferAttribute(reveal, 1));
 
   return geometry;
 }
@@ -424,26 +434,15 @@ function buildFieldGeometry(fieldStars: FieldStar[]) {
 export function ConstellationFace({
   constellation,
   tokenId,
-  materialRef,
+  reveal = true,
 }: {
   constellation: ConstellationData;
   tokenId: number;
-  materialRef?: MutableRefObject<THREE.ShaderMaterial | null>;
+  reveal?: boolean;
 }) {
-  const material = useMemo(() => {
-    const next = createHolderStarPointMaterial(true);
-    next.opacity = 0;
-    return next;
-  }, []);
-
-  useEffect(() => {
-    if (!materialRef) return;
-    materialRef.current = material;
-    return () => {
-      materialRef.current = null;
-    };
-  }, [material, materialRef]);
+  const material = useMemo(() => createConstellationStarPointMaterial(true), []);
   const lifeRef = useRef<ConstellationLife | null>(null);
+  const revealStartsRef = useRef<Float32Array | null>(null);
 
   const geometry = useMemo(
     () => buildGeometry(constellation.stars, constellation.sizeScale),
@@ -455,11 +454,36 @@ export function ConstellationFace({
     [constellation.stars, tokenId],
   );
 
+  const revealStarts = useMemo(
+    () => buildConstellationRevealSchedule(constellation.stars, tokenId),
+    [constellation.stars, tokenId],
+  );
+
   lifeRef.current = life;
+  revealStartsRef.current = revealStarts;
 
   useFrame(({ clock }) => {
-    if (!lifeRef.current) return;
-    applyConstellationLife(geometry, lifeRef.current, clock.elapsedTime);
+    if (!lifeRef.current || !revealStartsRef.current) return;
+
+    const elapsed = clock.elapsedTime;
+    const starts = revealStartsRef.current;
+    const revealAttr = geometry.getAttribute("aReveal") as THREE.BufferAttribute;
+    if (!revealAttr) return;
+
+    applyConstellationLife(geometry, lifeRef.current, elapsed);
+
+    let dirty = false;
+    for (let i = 0; i < starts.length; i++) {
+      const next = reveal
+        ? starRevealMultiplier(elapsed, starts[i]!)
+        : 0;
+      if (revealAttr.getX(i) !== next) {
+        revealAttr.setX(i, next);
+        dirty = true;
+      }
+    }
+
+    if (dirty) revealAttr.needsUpdate = true;
   });
 
   if (constellation.stars.length === 0) return null;

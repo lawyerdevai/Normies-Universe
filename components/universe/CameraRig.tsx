@@ -17,6 +17,7 @@ const SEARCH_VISIBILITY_REFERENCE_WORLD = 3.5;
 
 interface CameraRigProps {
   reducedMotion?: boolean;
+  arrivalActive?: boolean;
   controlsRef: React.RefObject<THREE.EventDispatcher | null>;
   resetKey: number;
   searchFocus: [number, number, number] | null;
@@ -85,6 +86,7 @@ function cameraPoseForSearch(
 
 export default function CameraRig({
   reducedMotion = false,
+  arrivalActive = false,
   controlsRef,
   resetKey,
   searchFocus,
@@ -190,6 +192,7 @@ export default function CameraRig({
   useFrame(({ clock }) => {
     if (
       reducedMotion ||
+      arrivalActive ||
       animating.current ||
       (searchFocusX !== undefined &&
         searchFocusY !== undefined &&

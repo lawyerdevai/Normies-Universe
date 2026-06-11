@@ -11,6 +11,7 @@ import {
   HOLDER_SEARCH_WARM,
   searchBreathFactor,
 } from "@/lib/universe/searchStarVisual";
+import { useGalaxyRevealRef } from "@/components/universe/GalaxyArrivalController";
 import type { DecorativeSkyStar, OuterHolderStar } from "@/types/universe";
 
 function createSkyStarTexture() {
@@ -196,6 +197,7 @@ export default function OuterHolderStars({
   highlightWallet,
   highlightActive,
 }: OuterHolderStarsProps) {
+  const revealRef = useGalaxyRevealRef();
   const decorative = useMemo(() => buildDecorativeSkyStars(), []);
   const decoRef = useRef<THREE.InstancedMesh>(null);
   const holderRef = useRef<THREE.InstancedMesh>(null);
@@ -311,6 +313,10 @@ export default function OuterHolderStars({
         baseColors.current,
       );
     }
+
+    const outerOpacity = revealRef.current.outer;
+    material.opacity = outerOpacity;
+    decoMaterial.opacity = outerOpacity;
   });
 
   return (

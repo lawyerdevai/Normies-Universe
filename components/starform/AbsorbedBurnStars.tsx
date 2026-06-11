@@ -1,14 +1,7 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MutableRefObject,
-} from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { createHolderStarPointMaterial } from "@/lib/universe/holderStarPointShader";
 import {
@@ -28,7 +21,6 @@ interface AbsorbedBurnStarsProps {
   selectedTokenId: number | null;
   onHover: (payload: AbsorbedHoverPayload | null) => void;
   onSelect: (tokenId: number) => void;
-  materialRef?: MutableRefObject<THREE.ShaderMaterial | null>;
 }
 
 const _projected = new THREE.Vector3();
@@ -92,7 +84,6 @@ export default function AbsorbedBurnStars({
   selectedTokenId,
   onHover,
   onSelect,
-  materialRef,
 }: AbsorbedBurnStarsProps) {
   const { camera, pointer, size, gl } = useThree();
   const pointsRef = useRef<THREE.Points>(null);
@@ -177,18 +168,8 @@ export default function AbsorbedBurnStars({
       new THREE.BufferAttribute(brightness, 1),
     );
 
-    const material = createHolderStarPointMaterial(true);
-    material.opacity = 0;
-    return { geometry, material };
+    return { geometry, material: createHolderStarPointMaterial(true) };
   }, [stars]);
-
-  useEffect(() => {
-    if (!materialRef) return;
-    materialRef.current = material;
-    return () => {
-      materialRef.current = null;
-    };
-  }, [material, materialRef]);
 
   useLayoutEffect(() => {
     if (pointsRef.current) {
