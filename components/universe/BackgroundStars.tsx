@@ -5,32 +5,34 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { createRng } from "@/lib/universe/seededRandom";
 
-/** ~60% of Starform ViewportBleedStars field density (7200 / 1800 / 180). */
+/** Three-layer deep-space field (same approach as Starform ViewportBleedStars). */
+const SHELL_RADIUS_MIN = 150;
+const SHELL_RADIUS_MAX = 300;
+
+const BRIGHTNESS_FLOOR = 0.05;
+
 const LAYERS = [
   {
-    count: 7200,
+    count: 20000,
     seed: 88001,
-    size: [0.1, 0.25] as [number, number],
-    brightness: [0.04, 0.18] as [number, number],
-    spread: 1.4,
+    size: [0.225, 0.5625] as [number, number],
+    brightness: [0.08, 0.22] as [number, number],
     twinkleRate: 0,
   },
   {
-    count: 1800,
+    count: 5000,
     seed: 88002,
-    size: [0.2, 0.5] as [number, number],
-    brightness: [0.18, 0.38] as [number, number],
-    spread: 1.0,
+    size: [0.45, 1.125] as [number, number],
+    brightness: [0.22, 0.42] as [number, number],
     twinkleRate: 0.25,
     twinkleLift: 0.8,
     twinkleCycle: [1.5, 4] as [number, number],
   },
   {
-    count: 180,
+    count: 400,
     seed: 88003,
-    size: [0.4, 0.85] as [number, number],
-    brightness: [0.4, 0.75] as [number, number],
-    spread: 0.65,
+    size: [0.9, 1.9125] as [number, number],
+    brightness: [0.42, 0.72] as [number, number],
     twinkleRate: 0.25,
     twinkleLift: 0.8,
     twinkleCycle: [1.5, 4] as [number, number],
@@ -98,6 +100,13 @@ interface BackgroundStarsProps {
 }
 
 export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
+  console.log(
+    "[BackgroundStars] layer counts:",
+    LAYERS.map((l) => l.count),
+    "total:",
+    LAYERS.reduce((s, l) => s + l.count, 0),
+  );
+
   const pointsRef = useRef<THREE.Points>(null);
   const twinkleRef = useRef<TwinkleMeta | null>(null);
   const enabled = debugLayers?.enabled ?? true;
@@ -121,13 +130,19 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
       for (let i = 0; i < layer.count; i++) {
         const theta = rng() * Math.PI * 2;
         const phi = Math.acos(2 * rng() - 1);
-        const r = 500 + rng() * 400 * layer.spread;
+        const r =
+          SHELL_RADIUS_MIN +
+          rng() * (SHELL_RADIUS_MAX - SHELL_RADIUS_MIN);
         const idx = offset + i;
         positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
         positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.3;
         positions[idx * 3 + 2] = r * Math.cos(phi);
         sizes[idx] = lerp(layer.size[0], layer.size[1], rng());
-        const bright = lerp(layer.brightness[0], layer.brightness[1], rng());
+        const bright = Math.min(
+          layer.brightness[1],
+          lerp(layer.brightness[0], layer.brightness[1], rng()) +
+            BRIGHTNESS_FLOOR,
+        );
         brightness[idx] = bright;
         baseBrightness[idx] = bright;
 
