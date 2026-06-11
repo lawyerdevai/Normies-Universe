@@ -98,6 +98,10 @@ export function createHolderStarPointMaterial(showGlow = true) {
   });
 }
 
+function constellationLowDpiBoost() {
+  return typeof window !== "undefined" && window.devicePixelRatio < 1.5 ? 1 : 0;
+}
+
 const CONSTELLATION_STAR_VERTEX_SHADER = /* glsl */ `
   attribute float aCoreSize;
   attribute float aGlowSize;
@@ -107,6 +111,7 @@ const CONSTELLATION_STAR_VERTEX_SHADER = /* glsl */ `
   attribute float aReveal;
   attribute vec3 color;
   uniform float uShowGlow;
+  uniform float uLowDpiBoost;
   varying float vBrightness;
   varying float vGlow;
   varying float vSparkle;
@@ -121,7 +126,7 @@ const CONSTELLATION_STAR_VERTEX_SHADER = /* glsl */ `
     vBrightness = aBrightness;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     float size = (aCoreSize + aGlowSize * vGlow * uShowGlow);
-    float pixelSize = size * (235.0 / -mvPosition.z);
+    float pixelSize = size * (235.0 / -mvPosition.z) * mix(1.0, 1.3, uLowDpiBoost);
     gl_PointSize = clamp(pixelSize, 3.0, 88.0);
     gl_Position = projectionMatrix * mvPosition;
   }
@@ -129,6 +134,7 @@ const CONSTELLATION_STAR_VERTEX_SHADER = /* glsl */ `
 
 const CONSTELLATION_STAR_FRAGMENT_SHADER = /* glsl */ `
   uniform float uShowGlow;
+  uniform float uLowDpiBoost;
   varying float vBrightness;
   varying float vGlow;
   varying float vSparkle;
@@ -144,13 +150,19 @@ const CONSTELLATION_STAR_FRAGMENT_SHADER = /* glsl */ `
     float circleMask = 1.0 - smoothstep(0.34, 0.47, dist);
     vec2 skew = vec2(uv.x * 1.08, uv.y * 0.92);
 
-    float core = exp(-length(skew) * length(skew) * 72.0);
-    float glow = exp(-dist * dist * mix(10.0, 4.5, vGlow)) * vGlow * 0.62 * uShowGlow;
+    float coreSharpness = mix(72.0, 108.0, uLowDpiBoost);
+    float core = exp(-length(skew) * length(skew) * coreSharpness);
+
+    float glowTight = mix(10.0, 14.0, uLowDpiBoost);
+    float glowWide = mix(4.5, 6.5, uLowDpiBoost);
+    float glowStrength = mix(0.62, 0.5, uLowDpiBoost);
+    float glow = exp(-dist * dist * mix(glowTight, glowWide, vGlow)) * vGlow * glowStrength * uShowGlow;
 
     float cross = exp(-abs(uv.x) * 36.0) * 0.48 + exp(-abs(uv.y) * 36.0) * 0.48;
     float sparkle = cross * vSparkle * circleMask;
 
-    float alpha = (core * 1.15 + glow + sparkle * 0.52) * vBrightness * circleMask * vReveal;
+    float coreAlpha = mix(1.15, 1.42, uLowDpiBoost);
+    float alpha = (core * coreAlpha + glow + sparkle * 0.52) * vBrightness * circleMask * vReveal;
 
     if (alpha < 0.001) discard;
 
@@ -159,7 +171,9 @@ const CONSTELLATION_STAR_FRAGMENT_SHADER = /* glsl */ `
       min(vColor.g * 1.06 + 0.07, 1.0),
       vColor.b * 0.84 + 0.03
     );
-    vec3 col = warm * (core * 1.35 + glow * 0.5 + sparkle * 0.4 + 0.2);
+    float colCore = mix(1.35, 1.55, uLowDpiBoost);
+    float colGlow = mix(0.5, 0.38, uLowDpiBoost);
+    vec3 col = warm * (core * colCore + glow * colGlow + sparkle * 0.4 + 0.2);
     gl_FragColor = vec4(col, alpha);
   }
 `;
@@ -168,6 +182,7 @@ export function createConstellationStarPointMaterial(showGlow = true) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uShowGlow: { value: showGlow ? 1 : 0 },
+      uLowDpiBoost: { value: constellationLowDpiBoost() },
     },
     vertexShader: CONSTELLATION_STAR_VERTEX_SHADER,
     fragmentShader: CONSTELLATION_STAR_FRAGMENT_SHADER,
