@@ -6,10 +6,9 @@ import AbsorbedBurnOverlay from "@/components/starform/AbsorbedBurnOverlay";
 import type { AbsorbedHoverPayload } from "@/components/starform/AbsorbedBurnStars";
 import NormieProfilePanel from "@/components/starform/NormieProfilePanel";
 import StarformScene from "@/components/starform/StarformScene";
-import HyperspaceTransition, {
-  STARFORM_HYPERSPACE_ACTIVE,
-} from "@/components/ui/HyperspaceTransition";
 import { generateConstellation } from "@/lib/universe/generateConstellation";
+
+const INTRO_REVEAL_MS = 2000;
 
 interface StarformViewProps {
   tokenId: number;
@@ -33,9 +32,7 @@ export default function StarformView({ tokenId }: StarformViewProps) {
   const [focusMode, setFocusMode] = useState(false);
   const [isSkyMode, setIsSkyMode] = useState(true);
   const backgroundColor = isSkyMode ? "#000000" : "#050a15";
-  const [hyperspaceActive, setHyperspaceActive] = useState(
-    () => sessionStorage.getItem(STARFORM_HYPERSPACE_ACTIVE) === "1",
-  );
+  const [introReveal, setIntroReveal] = useState(false);
 
   const handleAbsorbedHover = useCallback(
     (payload: AbsorbedHoverPayload | null) => {
@@ -52,9 +49,9 @@ export default function StarformView({ tokenId }: StarformViewProps) {
   }, []);
 
   useEffect(() => {
-    setHyperspaceActive(
-      sessionStorage.getItem(STARFORM_HYPERSPACE_ACTIVE) === "1",
-    );
+    setIntroReveal(false);
+    const timer = window.setTimeout(() => setIntroReveal(true), INTRO_REVEAL_MS);
+    return () => window.clearTimeout(timer);
   }, [tokenId]);
 
   useEffect(() => {
@@ -127,6 +124,9 @@ export default function StarformView({ tokenId }: StarformViewProps) {
     };
   }, [tokenId]);
 
+  const constellationReveal =
+    introReveal && state.status === "ready";
+
   return (
     <div
       className="relative h-screen w-screen overflow-hidden"
@@ -135,18 +135,19 @@ export default function StarformView({ tokenId }: StarformViewProps) {
         transition: "background-color 0.8s ease",
       }}
     >
-      {state.status === "ready" ? (
-        <StarformScene
-          constellation={state.constellation}
-          tokenId={tokenId}
-          backgroundColor={backgroundColor}
-          showAbsorbed={showAbsorbed}
-          absorbedHoverTokenId={absorbedHover}
-          absorbedSelectedTokenId={absorbedSelectedTokenId}
-          onAbsorbedHover={handleAbsorbedHover}
-          onAbsorbedSelect={handleAbsorbedSelect}
-        />
-      ) : null}
+      <StarformScene
+        tokenId={tokenId}
+        backgroundColor={backgroundColor}
+        constellation={
+          state.status === "ready" ? state.constellation : undefined
+        }
+        constellationReveal={constellationReveal}
+        showAbsorbed={showAbsorbed}
+        absorbedHoverTokenId={absorbedHover}
+        absorbedSelectedTokenId={absorbedSelectedTokenId}
+        onAbsorbedHover={handleAbsorbedHover}
+        onAbsorbedSelect={handleAbsorbedSelect}
+      />
 
       {focusMode && state.status === "ready" ? (
         <button
@@ -159,9 +160,11 @@ export default function StarformView({ tokenId }: StarformViewProps) {
 
       <div
         className={`transition-opacity duration-300 ${
-          focusMode
-            ? "pointer-events-none opacity-0"
-            : "pointer-events-none opacity-100"
+          introReveal
+            ? focusMode
+              ? "pointer-events-none opacity-0"
+              : "pointer-events-none opacity-100"
+            : "pointer-events-none opacity-0"
         }`}
       >
         {showAbsorbed ? (
@@ -176,7 +179,7 @@ export default function StarformView({ tokenId }: StarformViewProps) {
         <div className="fixed inset-0 z-10">
           <Link
             href="/"
-            className="pointer-events-auto absolute left-6 top-6 text-sm text-white/50 transition hover:text-white/75"
+            className="normie-universe-title pointer-events-auto absolute left-6 top-6 text-sm text-white/50 transition hover:text-white/75"
           >
             ← Normies Universe
           </Link>
@@ -227,25 +230,10 @@ export default function StarformView({ tokenId }: StarformViewProps) {
         />
       </div>
 
-      {state.status === "loading" && !hyperspaceActive ? (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-sm text-white/35">Loading constellation…</p>
-        </div>
-      ) : null}
-
-      {state.status === "error" ? (
+      {state.status === "error" && introReveal ? (
         <div className="absolute inset-0 flex items-center justify-center px-6">
           <p className="text-center text-sm text-white/45">{state.message}</p>
         </div>
-      ) : null}
-
-      {hyperspaceActive ? (
-        <HyperspaceTransition
-          onComplete={() => {
-            sessionStorage.removeItem(STARFORM_HYPERSPACE_ACTIVE);
-            setHyperspaceActive(false);
-          }}
-        />
       ) : null}
     </div>
   );

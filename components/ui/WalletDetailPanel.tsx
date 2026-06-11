@@ -9,7 +9,6 @@ import {
   useState,
   type MouseEvent,
 } from "react";
-import { STARFORM_HYPERSPACE_ACTIVE } from "@/components/ui/HyperspaceTransition";
 import {
   PANEL_ACCENT,
   panelAccentLine,
@@ -112,7 +111,6 @@ export default function WalletDetailPanel({
   const handleThumbnailActivate = useCallback(
     (id: string, event: MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
-      sessionStorage.setItem(STARFORM_HYPERSPACE_ACTIVE, "1");
       router.push(`/starform/${id}`);
     },
     [router],
