@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { createRng } from "@/lib/universe/seededRandom";
 
@@ -13,23 +13,23 @@ const BRIGHTNESS_FLOOR = 0.05;
 
 const LAYERS = [
   {
-    count: 20000,
+    count: 8000,
     seed: 88001,
-    size: [0.225, 0.5625] as [number, number],
+    size: [0.315, 0.7875] as [number, number],
     brightness: [0.08, 0.22] as [number, number],
     twinkleRate: 0,
   },
   {
-    count: 5000,
+    count: 2000,
     seed: 88002,
-    size: [0.45, 1.125] as [number, number],
+    size: [0.54, 1.35] as [number, number],
     brightness: [0.22, 0.42] as [number, number],
     twinkleRate: 0.25,
     twinkleLift: 0.8,
     twinkleCycle: [1.5, 4] as [number, number],
   },
   {
-    count: 400,
+    count: 150,
     seed: 88003,
     size: [0.9, 1.9125] as [number, number],
     brightness: [0.42, 0.72] as [number, number],
@@ -100,13 +100,6 @@ interface BackgroundStarsProps {
 }
 
 export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
-  console.log(
-    "[BackgroundStars] layer counts:",
-    LAYERS.map((l) => l.count),
-    "total:",
-    LAYERS.reduce((s, l) => s + l.count, 0),
-  );
-
   const pointsRef = useRef<THREE.Points>(null);
   const twinkleRef = useRef<TwinkleMeta | null>(null);
   const enabled = debugLayers?.enabled ?? true;
@@ -192,8 +185,17 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
       blending: THREE.AdditiveBlending,
     });
 
+    geometry.computeBoundingSphere();
+
     return { geometry, material };
   }, [showHalo]);
+
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+    };
+  }, [geometry, material]);
 
   useLayoutEffect(() => {
     if (pointsRef.current) {
@@ -231,7 +233,7 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
       ref={pointsRef}
       geometry={geometry}
       material={material}
-      frustumCulled={false}
+      frustumCulled
       raycast={() => null}
     />
   );
