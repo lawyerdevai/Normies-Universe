@@ -11,7 +11,30 @@ const SHELL_RADIUS_MAX = 300;
 
 const BRIGHTNESS_FLOOR = 0.05;
 
-const LAYERS = [
+type TwinkleLayerFields = {
+  twinkleLift: number;
+  twinkleCycle: [number, number];
+};
+
+type BackgroundStarLayer = {
+  count: number;
+  seed: number;
+  size: [number, number];
+  brightness: [number, number];
+  twinkleRate: number;
+} & Partial<TwinkleLayerFields>;
+
+function isTwinkleLayer(
+  layer: BackgroundStarLayer,
+): layer is BackgroundStarLayer & TwinkleLayerFields {
+  return (
+    layer.twinkleRate > 0 &&
+    layer.twinkleLift !== undefined &&
+    layer.twinkleCycle !== undefined
+  );
+}
+
+const LAYERS: BackgroundStarLayer[] = [
   {
     count: 8000,
     seed: 88001,
@@ -139,16 +162,12 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
         brightness[idx] = bright;
         baseBrightness[idx] = bright;
 
-        if (
-          layer.twinkleRate > 0 &&
-          rng() < layer.twinkleRate &&
-          "twinkleLift" in layer
-        ) {
+        if (rng() < layer.twinkleRate && isTwinkleLayer(layer)) {
           twinkleEnabled[idx] = 1;
           phases[idx] = rng() * Math.PI * 2;
           speeds[idx] = cycleSpeed(
-            layer.twinkleCycle?.[0] ?? 2,
-            layer.twinkleCycle?.[1] ?? 5,
+            layer.twinkleCycle[0],
+            layer.twinkleCycle[1],
             rng,
           );
           lifts[idx] = layer.twinkleLift;
