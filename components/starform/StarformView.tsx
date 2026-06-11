@@ -28,6 +28,8 @@ export default function StarformView({ tokenId }: StarformViewProps) {
   const [showAbsorbed, setShowAbsorbed] = useState(false);
   const [totalAbsorbed, setTotalAbsorbed] = useState<number | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [isSkyMode, setIsSkyMode] = useState(false);
+  const backgroundColor = isSkyMode ? "#000000" : "#050a15";
 
   const handleAbsorbedHover = useCallback(
     (payload: AbsorbedHoverPayload | null) => {
@@ -114,11 +116,18 @@ export default function StarformView({ tokenId }: StarformViewProps) {
   }, [tokenId]);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-[#050a15]">
+    <div
+      className="relative h-screen w-screen overflow-hidden"
+      style={{
+        backgroundColor,
+        transition: "background-color 0.8s ease",
+      }}
+    >
       {state.status === "ready" ? (
         <StarformScene
           constellation={state.constellation}
           tokenId={tokenId}
+          backgroundColor={backgroundColor}
           showAbsorbed={showAbsorbed}
           absorbedHoverTokenId={absorbedHover}
           absorbedSelectedTokenId={absorbedSelectedTokenId}
@@ -167,6 +176,13 @@ export default function StarformView({ tokenId }: StarformViewProps) {
                 className="text-sm text-white/50 transition hover:text-white/75"
               >
                 ✦ Focus
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsSkyMode((on) => !on)}
+                className="text-sm text-white/50 transition hover:text-white/75"
+              >
+                {isSkyMode ? "✦ Sky" : "✦ Space"}
               </button>
               {totalAbsorbed !== null && totalAbsorbed > 0 ? (
                 <button
