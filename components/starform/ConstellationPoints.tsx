@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { DEFAULT_CAMERA_FOV } from "@/lib/universe/cameraConfig";
 import { createHolderStarPointMaterial } from "@/lib/universe/holderStarPointShader";
@@ -424,11 +424,25 @@ function buildFieldGeometry(fieldStars: FieldStar[]) {
 export function ConstellationFace({
   constellation,
   tokenId,
+  materialRef,
 }: {
   constellation: ConstellationData;
   tokenId: number;
+  materialRef?: MutableRefObject<THREE.ShaderMaterial | null>;
 }) {
-  const material = useMemo(() => createHolderStarPointMaterial(true), []);
+  const material = useMemo(() => {
+    const next = createHolderStarPointMaterial(true);
+    next.opacity = 0;
+    return next;
+  }, []);
+
+  useEffect(() => {
+    if (!materialRef) return;
+    materialRef.current = material;
+    return () => {
+      materialRef.current = null;
+    };
+  }, [material, materialRef]);
   const lifeRef = useRef<ConstellationLife | null>(null);
 
   const geometry = useMemo(

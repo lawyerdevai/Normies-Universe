@@ -4,54 +4,58 @@ import { useEffect, useRef } from "react";
 
 export const STARFORM_HYPERSPACE_ACTIVE = "starform-hyperspace-active";
 
-const DURATION_MS = 4000;
-const ACCEL_END_MS = 1000;
-const PEAK_END_MS = 3000;
-const CROSSFADE_START_MS = 3400;
-const MAX_STARS = 480;
+const DURATION_MS = 3000;
+const ACCEL_END_MS = 800;
+const CRUISE_END_MS = 2200;
+const CROSSFADE_START_MS = 2600;
+const MAX_STARS = 420;
+
+const STAR_COLORS = ["#FFFFFF", "#E8F4FF", "#F4F8FF"] as const;
 
 type Star = {
   x: number;
   y: number;
   vx: number;
   vy: number;
-  size: number;
+  radius: number;
+  brightness: number;
+  color: string;
 };
 
 type PhaseParams = {
   spawnRate: number;
   speedMult: number;
   drift: number;
-  pixelAlpha: number;
+  alpha: number;
 };
 
 function phaseParams(elapsed: number): PhaseParams {
   if (elapsed < ACCEL_END_MS) {
     const p = elapsed / ACCEL_END_MS;
     return {
-      spawnRate: 0.4 + p * 3.5,
-      speedMult: 0.1 + p * 0.85,
-      drift: 1.008 + p * 0.015,
-      pixelAlpha: 1,
+      spawnRate: 0.35 + p * 5,
+      speedMult: 0.08 + p * 1.1,
+      drift: 1.01 + p * 0.018,
+      alpha: 1,
     };
   }
 
-  if (elapsed < PEAK_END_MS) {
-    const p = (elapsed - ACCEL_END_MS) / (PEAK_END_MS - ACCEL_END_MS);
+  if (elapsed < CRUISE_END_MS) {
+    const p = (elapsed - ACCEL_END_MS) / (CRUISE_END_MS - ACCEL_END_MS);
     return {
-      spawnRate: 3.5 + p * 15,
-      speedMult: 0.95 + p * 2.4,
-      drift: 1.018 + p * 0.02,
-      pixelAlpha: 1,
+      spawnRate: 5 + p * 14,
+      speedMult: 1.18 + p * 2.6,
+      drift: 1.022 + p * 0.012,
+      alpha: 1,
     };
   }
 
-  const p = (elapsed - PEAK_END_MS) / (DURATION_MS - PEAK_END_MS);
+  const p = (elapsed - CRUISE_END_MS) / (DURATION_MS - CRUISE_END_MS);
   return {
-    spawnRate: 18 * (1 - p) ** 1.6,
-    speedMult: 3.35 * (1 - p * 0.9),
-    drift: 0.988 - p * 0.015,
-    pixelAlpha: 1 - p,
+    spawnRate: 16 * (1 - p) ** 1.5,
+    speedMult: 3.78 * (1 - p * 0.93),
+    drift: 0.988 - p * 0.012,
+    alpha: 1 - p * 0.95,
   };
 }
 
@@ -61,32 +65,53 @@ function spawnStar(
   params: PhaseParams,
 ): Star {
   const angle = Math.random() * Math.PI * 2;
-  const radius = Math.random() * 16;
-  const speed = (0.6 + Math.random() * 1.8) * params.speedMult;
+  const radius = Math.random() * 20;
+  const speed = (0.5 + Math.random() * 1.6) * params.speedMult;
+  const roll = Math.random();
 
   return {
     x: centerX + Math.cos(angle) * radius,
     y: centerY + Math.sin(angle) * radius,
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
-    size: Math.random() < 0.4 ? 4 : 3,
+    radius: roll < 0.55 ? 1.2 + Math.random() * 0.8 : 1.8 + Math.random() * 1.4,
+    brightness: 0.35 + Math.random() * 0.55,
+    color: STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)]!,
   };
 }
 
 function drawStar(
   ctx: CanvasRenderingContext2D,
   star: Star,
-  alpha: number,
+  phaseAlpha: number,
 ) {
-  ctx.fillStyle = "#FFFFFF";
-  ctx.globalAlpha = alpha;
-  ctx.fillRect(
-    star.x - star.size * 0.5,
-    star.y - star.size * 0.5,
-    star.size,
-    star.size,
+  const alpha = star.brightness * phaseAlpha;
+  if (alpha <= 0.01) return;
+
+  const glow = star.radius * 2.2;
+  const gradient = ctx.createRadialGradient(
+    star.x,
+    star.y,
+    0,
+    star.x,
+    star.y,
+    glow,
   );
-  ctx.globalAlpha = 1;
+  gradient.addColorStop(0, hexWithAlpha(star.color, alpha));
+  gradient.addColorStop(0.45, hexWithAlpha(star.color, alpha * 0.35));
+  gradient.addColorStop(1, hexWithAlpha(star.color, 0));
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(star.x, star.y, glow, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function hexWithAlpha(hex: string, alpha: number) {
+  const r = Number.parseInt(hex.slice(1, 3), 16);
+  const g = Number.parseInt(hex.slice(3, 5), 16);
+  const b = Number.parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, alpha))})`;
 }
 
 interface HyperspaceTransitionProps {
@@ -146,7 +171,7 @@ export default function HyperspaceTransition({
         star.x += star.vx * (dt / 16);
         star.y += star.vy * (dt / 16);
 
-        const margin = 80;
+        const margin = 60;
         if (
           star.x < -margin ||
           star.x > canvas.width + margin ||
@@ -157,7 +182,7 @@ export default function HyperspaceTransition({
           continue;
         }
 
-        drawStar(ctx, star, params.pixelAlpha);
+        drawStar(ctx, star, params.alpha);
       }
 
       if (elapsed >= CROSSFADE_START_MS) {
