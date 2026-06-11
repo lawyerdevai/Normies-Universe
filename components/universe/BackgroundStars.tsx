@@ -86,7 +86,7 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
       for (let i = 0; i < layer.count; i++) {
         const theta = rng() * Math.PI * 2;
         const phi = Math.acos(2 * rng() - 1);
-        const r = (90 + rng() * 280) * layer.spread;
+        const r = 500 + rng() * 400 * layer.spread;
         const idx = offset + i;
         positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
         positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.3;
