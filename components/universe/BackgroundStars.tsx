@@ -147,8 +147,8 @@ export default function BackgroundStars({ debugLayers }: BackgroundStarsProps) {
           twinkleEnabled[idx] = 1;
           phases[idx] = rng() * Math.PI * 2;
           speeds[idx] = cycleSpeed(
-            layer.twinkleCycle[0],
-            layer.twinkleCycle[1],
+            layer.twinkleCycle?.[0] ?? 2,
+            layer.twinkleCycle?.[1] ?? 5,
             rng,
           );
           lifts[idx] = layer.twinkleLift;
