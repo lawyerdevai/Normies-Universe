@@ -1,7 +1,7 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
-import { useMemo } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import AbsorbedBurnStars, {
   type AbsorbedHoverPayload,
@@ -18,12 +18,39 @@ const VIEWPORT_HEIGHT_FRACTION = 0.75;
 const CAMERA_Z = 50;
 const CAMERA_NEAR = 0.01;
 const CAMERA_FAR = 10000;
-const BACKGROUND = "#050a15";
+export const STARFORM_BACKGROUND_SPACE = "#050a15";
+export const STARFORM_BACKGROUND_SKY = "#0a0a2e";
+const BACKGROUND_TRANSITION_SECONDS = 0.8;
 const Y_OFFSET_FRACTION = 0.05;
+
+function TransitionBackground({ color }: { color: string }) {
+  const { scene } = useThree();
+  const targetRef = useRef(new THREE.Color(color));
+
+  useLayoutEffect(() => {
+    if (!(scene.background instanceof THREE.Color)) {
+      scene.background = new THREE.Color(color);
+    }
+  }, [scene, color]);
+
+  useEffect(() => {
+    targetRef.current.set(color);
+  }, [color]);
+
+  useFrame((_, delta) => {
+    const bg = scene.background;
+    if (!(bg instanceof THREE.Color)) return;
+    const step = Math.min(1, delta / BACKGROUND_TRANSITION_SECONDS);
+    bg.lerp(targetRef.current, step);
+  });
+
+  return null;
+}
 
 interface StarformSceneProps {
   constellation: ConstellationData;
   tokenId: number;
+  backgroundColor: string;
   showAbsorbed: boolean;
   absorbedHoverTokenId: number | null;
   absorbedSelectedTokenId: number | null;
@@ -82,6 +109,7 @@ function ConstellationField({
 export default function StarformScene({
   constellation,
   tokenId,
+  backgroundColor,
   showAbsorbed,
   absorbedHoverTokenId,
   absorbedSelectedTokenId,
@@ -104,7 +132,7 @@ export default function StarformScene({
       }}
       className="absolute inset-0"
     >
-      <color attach="background" args={[BACKGROUND]} />
+      <TransitionBackground color={backgroundColor} />
       <ConstellationField
         constellation={constellation}
         tokenId={tokenId}
