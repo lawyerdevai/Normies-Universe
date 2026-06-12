@@ -18,6 +18,7 @@ import FoundStar from "@/components/universe/FoundStar";
 import DeepSpaceGlimmer from "@/components/universe/DeepSpaceGlimmer";
 import BurnerStars from "@/components/universe/BurnerStars";
 import OuterHolderStars from "@/components/universe/OuterHolderStars";
+import ZombieLeaderboardStar from "@/components/universe/ZombieLeaderboardStar";
 import SearchLocator from "@/components/universe/SearchLocator";
 import { DEFAULT_LAYER_DEBUG } from "@/components/universe/layerDebug";
 import StarTooltip from "@/components/universe/StarTooltip";
@@ -41,6 +42,7 @@ import {
   top75WalletSet,
 } from "@/lib/universe/buildBurnerStars";
 import type { BurnersApiResponse } from "@/lib/universe/burnerStarConfig";
+import { ZOMBIE_LEADERBOARD_STAR_POSITION } from "@/lib/universe/zombieLeaderboardStar";
 import {
   assignHoldersToStars,
   buildOuterHolderStars,
@@ -162,10 +164,14 @@ function SceneContent({
   selectedBurnerId,
   starHoverRef,
   burnerCaptureRef,
+  zombieCaptureRef,
+  hoveredZombieLeaderboard,
   onHover,
   onBurnerHover,
+  onZombieLeaderboardHover,
   onSelect,
   onBurnerSelect,
+  onZombieLeaderboardSelect,
   onEmptyClick,
   onCoreHover,
   onPyreClick,
@@ -192,6 +198,8 @@ function SceneContent({
   selectedBurnerId: string | null;
   starHoverRef: React.RefObject<HolderGroupStar | null>;
   burnerCaptureRef: React.RefObject<boolean>;
+  zombieCaptureRef: React.RefObject<boolean>;
+  hoveredZombieLeaderboard: boolean;
   onHover: (
     group: HolderGroupStar | null,
     screenPos?: { x: number; y: number },
@@ -200,8 +208,13 @@ function SceneContent({
     star: BurnerStar | null,
     screenPos?: { x: number; y: number },
   ) => void;
+  onZombieLeaderboardHover: (
+    hovered: boolean,
+    screenPos?: { x: number; y: number },
+  ) => void;
   onSelect: (group: HolderGroupStar) => void;
   onBurnerSelect: (star: BurnerStar) => void;
+  onZombieLeaderboardSelect: () => void;
   onEmptyClick: () => void;
   onCoreHover: (hovered: boolean, screenPos?: { x: number; y: number }) => void;
   onPyreClick: () => void;
@@ -244,6 +257,7 @@ function SceneContent({
           ...holderGroups.map((g) => g.position),
           ...outerStars.map((s) => s.position),
           ...burnerStars.map((s) => s.position),
+          ZOMBIE_LEADERBOARD_STAR_POSITION,
         ]}
       />
       <BurnerStars
@@ -253,6 +267,12 @@ function SceneContent({
         captureRef={burnerCaptureRef}
         onHover={onBurnerHover}
         onSelect={onBurnerSelect}
+      />
+      <ZombieLeaderboardStar
+        hovered={hoveredZombieLeaderboard}
+        captureRef={zombieCaptureRef}
+        onHover={onZombieLeaderboardHover}
+        onSelect={onZombieLeaderboardSelect}
       />
 
       {/* Top-75 search highlight — outer stars highlight in-place via instanced mesh */}
@@ -276,8 +296,11 @@ function SceneContent({
         onSelect={onSelect}
         onPyreClick={onPyreClick}
         onEmptyClick={onEmptyClick}
-        skipClickIfBurnerHovered={() => burnerCaptureRef.current}
+        skipClickIfBurnerHovered={() =>
+          burnerCaptureRef.current || zombieCaptureRef.current
+        }
         skipHoverIfBurnerCaptured={burnerCaptureRef}
+        skipHoverIfZombieCaptured={zombieCaptureRef}
       />
       <CentralCore
         isHovered={hoveredCore}
@@ -381,6 +404,10 @@ export default function UniverseScene({
     initialBurnerData,
   );
   const burnerCaptureRef = useRef(false);
+  const zombieCaptureRef = useRef(false);
+  const [hoveredZombieLeaderboard, setHoveredZombieLeaderboard] =
+    useState(false);
+  const [zombieLeaderboardOpen, setZombieLeaderboardOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -530,7 +557,10 @@ export default function UniverseScene({
   const handleHover = useCallback(
     (group: HolderGroupStar | null, screenPos?: { x: number; y: number }) => {
       setHoveredGroup(group);
-      if (group) setHoveredBurner(null);
+      if (group) {
+        setHoveredBurner(null);
+        setHoveredZombieLeaderboard(false);
+      }
       setHoveredCore(false);
       setTooltipPos(screenPos ?? null);
     },
@@ -542,6 +572,7 @@ export default function UniverseScene({
       setHoveredBurner(star);
       if (star) {
         setHoveredGroup(null);
+        setHoveredZombieLeaderboard(false);
         setHoveredCore(false);
         setTooltipPos(screenPos ?? null);
       }
@@ -549,10 +580,28 @@ export default function UniverseScene({
     [],
   );
 
+  const handleZombieLeaderboardHover = useCallback(
+    (hovered: boolean, screenPos?: { x: number; y: number }) => {
+      setHoveredZombieLeaderboard(hovered);
+      if (hovered) {
+        setHoveredGroup(null);
+        setHoveredBurner(null);
+        setHoveredCore(false);
+        setTooltipPos(screenPos ?? null);
+      }
+    },
+    [],
+  );
+
+  const handleZombieLeaderboardSelect = useCallback(() => {
+    setZombieLeaderboardOpen(true);
+  }, []);
+
   const handleCoreHover = useCallback(
     (hovered: boolean, screenPos?: { x: number; y: number }) => {
       if (starHoverRef.current) return;
       setHoveredCore(hovered);
+      if (hovered) setHoveredZombieLeaderboard(false);
       setTooltipPos(hovered ? (screenPos ?? null) : null);
     },
     [],
@@ -775,10 +824,14 @@ export default function UniverseScene({
           resetKey={resetKey}
           starHoverRef={starHoverRef}
           burnerCaptureRef={burnerCaptureRef}
+          zombieCaptureRef={zombieCaptureRef}
+          hoveredZombieLeaderboard={hoveredZombieLeaderboard}
           onHover={handleHover}
           onBurnerHover={handleBurnerHover}
+          onZombieLeaderboardHover={handleZombieLeaderboardHover}
           onSelect={handleSelect}
           onBurnerSelect={handleBurnerSelect}
+          onZombieLeaderboardSelect={handleZombieLeaderboardSelect}
           onPyreClick={handleCoreSelect}
           onEmptyClick={handleEmptyClick}
           onCoreHover={handleCoreHover}
@@ -816,7 +869,11 @@ export default function UniverseScene({
         searchedBurn={pyreSearchedBurn}
         onClose={handleClosePanel}
       />
-      <ZombieLeaderboard burners={burnerData?.burners ?? null} />
+      <ZombieLeaderboard
+        burners={burnerData?.burners ?? null}
+        open={zombieLeaderboardOpen}
+        onClose={() => setZombieLeaderboardOpen(false)}
+      />
     </div>
   );
 }
