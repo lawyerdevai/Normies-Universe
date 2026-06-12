@@ -20,7 +20,7 @@ const robotastic = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Normie Universe",
+  title: "Normies Universe",
   description: "A living map of the Normies holder galaxy",
 };
 
