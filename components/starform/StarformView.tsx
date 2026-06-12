@@ -6,6 +6,7 @@ import AbsorbedBurnOverlay from "@/components/starform/AbsorbedBurnOverlay";
 import type { AbsorbedHoverPayload } from "@/components/starform/AbsorbedBurnStars";
 import NormieProfilePanel from "@/components/starform/NormieProfilePanel";
 import StarformScene from "@/components/starform/StarformScene";
+import { exportConstellationImage } from "@/lib/starform/exportConstellationImage";
 import { GALAXY_ARRIVAL_ACTIVE } from "@/lib/universe/galaxyArrival";
 import { CONSTELLATION_REVEAL_COMPLETE_MS } from "@/lib/universe/constellationReveal";
 import { generateConstellation } from "@/lib/universe/generateConstellation";
@@ -46,6 +47,7 @@ export default function StarformView({ tokenId }: StarformViewProps) {
   const [revealComplete, setRevealComplete] = useState(false);
   const [densitySlider, setDensitySlider] = useState(50);
   const [densityMultiplier, setDensityMultiplier] = useState(1);
+  const [exporting, setExporting] = useState(false);
   const pixelDataRef = useRef<string | null>(null);
   const skipDensityRegenRef = useRef(true);
 
@@ -197,6 +199,16 @@ export default function StarformView({ tokenId }: StarformViewProps) {
     router.push("/");
   }, [router]);
 
+  const handleDownload = useCallback(async () => {
+    if (state.status !== "ready" || exporting) return;
+    setExporting(true);
+    try {
+      await exportConstellationImage(state.constellation, tokenId);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, state, tokenId]);
+
   return (
     <div
       className="relative h-screen w-screen overflow-hidden"
@@ -302,6 +314,21 @@ export default function StarformView({ tokenId }: StarformViewProps) {
           totalAbsorbed={totalAbsorbed}
           focusMode={focusMode}
         />
+
+        {state.status === "ready" && revealComplete && !departing ? (
+          <button
+            type="button"
+            title="Download"
+            aria-label="Download"
+            disabled={exporting}
+            onClick={handleDownload}
+            className={`normie-universe-title pointer-events-auto fixed bottom-8 right-6 z-10 text-sm text-white/50 transition hover:text-white/75 disabled:opacity-30 ${
+              focusMode ? "pointer-events-none opacity-0" : "opacity-100"
+            }`}
+          >
+            ↓
+          </button>
+        ) : null}
 
         {state.status === "ready" && revealComplete && !departing ? (
           <div
