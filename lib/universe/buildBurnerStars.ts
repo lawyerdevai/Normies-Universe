@@ -2,7 +2,8 @@ import { truncateWallet } from "@/lib/opensea/holders";
 import type { RankedHolder } from "@/lib/opensea/holders";
 import type { BurnerStar, HolderGroupStar, OuterHolderStar } from "@/types/universe";
 import {
-  burnerColor,
+  resolveBurnerStarColor,
+  zombieWalletSet,
   type BurnerWalletEntry,
 } from "./burnerStarConfig";
 import { visualFromHoldings } from "./holderStarVisual";
@@ -41,6 +42,7 @@ export function applyBurnerColorsToTop75(
   groups: HolderGroupStar[],
   burners: BurnerWalletEntry[],
 ): HolderGroupStar[] {
+  const zombies = zombieWalletSet(burners);
   const burnerByWallet = new Map(
     burners.map((b) => [normalizeWalletAddress(b.address), b]),
   );
@@ -52,7 +54,7 @@ export function applyBurnerColorsToTop75(
 
     return {
       ...group,
-      color: burnerColor(burner.tier),
+      color: resolveBurnerStarColor(wallet, burner.tier, zombies),
       burnedCount: burner.burnedCount,
       burnerTier: burner.tier,
     };
@@ -84,6 +86,7 @@ export function buildDedicatedBurnerStars(
     (b) => !top75Wallets.has(normalizeWalletAddress(b.address)),
   );
 
+  const zombies = zombieWalletSet(burners);
   const quadrantCounts: [number, number, number, number] = [0, 0, 0, 0];
   const total = nonTop75.length;
 
@@ -102,7 +105,7 @@ export function buildDedicatedBurnerStars(
       normieCount: holder?.count ?? 0,
       collectionRank: holder?.rank,
       position: placement.position,
-      color: burnerColor(burner.tier),
+      color: resolveBurnerStarColor(wallet, burner.tier, zombies),
       coreSize: visual.coreSize,
       glowSize: visual.glowSize,
       glowOpacity: visual.glowOpacity,
