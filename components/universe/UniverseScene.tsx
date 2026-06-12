@@ -24,6 +24,7 @@ import StarTooltip from "@/components/universe/StarTooltip";
 import SearchBar from "@/components/ui/SearchBar";
 import PyreDetailPanel from "@/components/ui/PyreDetailPanel";
 import WalletDetailPanel from "@/components/ui/WalletDetailPanel";
+import ZombieLeaderboard from "@/components/ui/ZombieLeaderboard";
 import {
   DEFAULT_CAMERA_FOV,
   DEFAULT_CAMERA_NEAR,
@@ -815,6 +816,7 @@ export default function UniverseScene({
         searchedBurn={pyreSearchedBurn}
         onClose={handleClosePanel}
       />
+      <ZombieLeaderboard burners={burnerData?.burners ?? null} />
     </div>
   );
 }

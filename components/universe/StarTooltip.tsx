@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  BURNER_ZOMBIE_COLOR,
+  ZOMBIE_TIER_ACTIVE,
+} from "@/lib/universe/burnerStarConfig";
 import type { BurnerStar, HolderGroupStar } from "@/types/universe";
 
 const BURNED_ORANGE = "#FF6B00";
@@ -12,11 +16,12 @@ interface StarTooltipProps {
   totalBurned?: number | null;
 }
 
-function BurnedSuffix({ count }: { count: number }) {
+function BurnedSuffix({ count, zombie }: { count: number; zombie?: boolean }) {
   return (
     <>
       {" · "}
       <span style={{ color: BURNED_ORANGE }}>
+        {zombie && ZOMBIE_TIER_ACTIVE ? "🧟 " : ""}
         {count.toLocaleString()} Burned
       </span>
     </>
@@ -31,7 +36,12 @@ function RankedHolderTooltip({ group }: { group: HolderGroupStar }) {
   return (
     <p className="text-xs font-medium tracking-wide text-amber-50/90">
       #{rank} · {wallet} · {normies} Normies
-      {group.burnedCount ? <BurnedSuffix count={group.burnedCount} /> : null}
+      {group.burnedCount ? (
+        <BurnedSuffix
+          count={group.burnedCount}
+          zombie={group.color === BURNER_ZOMBIE_COLOR}
+        />
+      ) : null}
     </p>
   );
 }
@@ -44,7 +54,10 @@ function BurnerStarTooltip({ star }: { star: BurnerStar }) {
       <p className="text-xs font-medium tracking-wide text-amber-50/90">
         #{star.collectionRank} · {wallet} · {star.normieCount.toLocaleString()}{" "}
         Normies
-        <BurnedSuffix count={star.burnedCount} />
+        <BurnedSuffix
+          count={star.burnedCount}
+          zombie={star.color === BURNER_ZOMBIE_COLOR}
+        />
       </p>
     );
   }
@@ -52,7 +65,10 @@ function BurnerStarTooltip({ star }: { star: BurnerStar }) {
   return (
     <p className="text-xs font-medium tracking-wide text-amber-50/90">
       {wallet}
-      <BurnedSuffix count={star.burnedCount} />
+      <BurnedSuffix
+        count={star.burnedCount}
+        zombie={star.color === BURNER_ZOMBIE_COLOR}
+      />
     </p>
   );
 }
