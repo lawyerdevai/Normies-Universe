@@ -554,6 +554,15 @@ export default function UniverseScene({
     setSearchFocus(null);
   }, []);
 
+  const closeAllPanels = useCallback(() => {
+    setHighlightTokenId(null);
+    setWalletSelection(null);
+    setPyreOpen(false);
+    setPyreSearchedBurn(null);
+    setZombieLeaderboardOpen(false);
+    deactivateSearchHighlights();
+  }, [deactivateSearchHighlights]);
+
   const handleHover = useCallback(
     (group: HolderGroupStar | null, screenPos?: { x: number; y: number }) => {
       setHoveredGroup(group);
@@ -594,8 +603,9 @@ export default function UniverseScene({
   );
 
   const handleZombieLeaderboardSelect = useCallback(() => {
+    closeAllPanels();
     setZombieLeaderboardOpen(true);
-  }, []);
+  }, [closeAllPanels]);
 
   const handleCoreHover = useCallback(
     (hovered: boolean, screenPos?: { x: number; y: number }) => {
@@ -608,42 +618,28 @@ export default function UniverseScene({
   );
 
   const handleSelect = useCallback((group: HolderGroupStar) => {
-    setHighlightTokenId(null);
+    closeAllPanels();
     setWalletSelection(holderToWalletSelection(group));
-    setPyreOpen(false);
-    setPyreSearchedBurn(null);
-    deactivateSearchHighlights();
-  }, [deactivateSearchHighlights]);
+  }, [closeAllPanels]);
 
   const handleBurnerSelect = useCallback(
     (star: BurnerStar) => {
-      setHighlightTokenId(null);
+      closeAllPanels();
       setWalletSelection(burnerToWalletSelection(star));
-      setPyreOpen(false);
-      setPyreSearchedBurn(null);
-      deactivateSearchHighlights();
     },
-    [deactivateSearchHighlights],
+    [closeAllPanels],
   );
 
   const handleCoreSelect = useCallback(() => {
-    setPyreSearchedBurn(null);
+    closeAllPanels();
     setPyreOpen(true);
-    setWalletSelection(null);
-    deactivateSearchHighlights();
-  }, [deactivateSearchHighlights]);
+  }, [closeAllPanels]);
 
-  const handleClosePanel = useCallback(() => {
-    setHighlightTokenId(null);
-    setWalletSelection(null);
-    setPyreOpen(false);
-    setPyreSearchedBurn(null);
-    deactivateSearchHighlights();
-  }, [deactivateSearchHighlights]);
+  const handleClosePanel = closeAllPanels;
 
   const handleEmptyClick = useCallback(() => {
-    handleClosePanel();
-  }, [handleClosePanel]);
+    closeAllPanels();
+  }, [closeAllPanels]);
 
   const handleResetCamera = useCallback(() => {
     setHoveredGroup(null);
@@ -656,6 +652,9 @@ export default function UniverseScene({
 
   const activateHolderSearch = useCallback(
     (match: NonNullable<ReturnType<typeof findHolderByWallet>>) => {
+      setZombieLeaderboardOpen(false);
+      setPyreOpen(false);
+      setPyreSearchedBurn(null);
       setDimKey((k) => k + 1);
       setSearchFocus(searchFocusPosition(match));
       setSearchFocusKey((k) => k + 1);
@@ -682,8 +681,6 @@ export default function UniverseScene({
         });
         setWalletSelection(burnerToWalletSelection(match.star));
       }
-      setPyreOpen(false);
-      setPyreSearchedBurn(null);
     },
     [],
   );
@@ -726,10 +723,8 @@ export default function UniverseScene({
           | { status: "burned"; tokenId: string; burnedAt: number };
 
         if (data.status === "burned") {
-          deactivateSearchHighlights();
+          closeAllPanels();
           setDimKey((k) => k + 1);
-          setHighlightTokenId(null);
-          setWalletSelection(null);
           setPyreSearchedBurn({
             tokenId: data.tokenId,
             burnedAt: data.burnedAt,
@@ -759,6 +754,7 @@ export default function UniverseScene({
       outerStars,
       burnerStars,
       activateHolderSearch,
+      closeAllPanels,
       deactivateSearchHighlights,
     ],
   );
@@ -872,7 +868,7 @@ export default function UniverseScene({
       <ZombieLeaderboard
         burners={burnerData?.burners ?? null}
         open={zombieLeaderboardOpen}
-        onClose={() => setZombieLeaderboardOpen(false)}
+        onClose={handleClosePanel}
       />
     </div>
   );

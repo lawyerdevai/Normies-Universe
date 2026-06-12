@@ -57,11 +57,16 @@ export default function StarformView({ tokenId }: StarformViewProps) {
     [],
   );
 
-  const handleAbsorbedSelect = useCallback((absorbedTokenId: number) => {
-    setAbsorbedSelectedTokenId(absorbedTokenId);
+  const closeAbsorbedPanel = useCallback(() => {
+    setAbsorbedSelectedTokenId(null);
     setAbsorbedHover(null);
     setAbsorbedHoverScreen(null);
   }, []);
+
+  const handleAbsorbedSelect = useCallback((absorbedTokenId: number) => {
+    closeAbsorbedPanel();
+    setAbsorbedSelectedTokenId(absorbedTokenId);
+  }, [closeAbsorbedPanel]);
 
   useEffect(() => {
     setIntroReveal(false);
@@ -239,7 +244,7 @@ export default function StarformView({ tokenId }: StarformViewProps) {
             receiverTokenId={tokenId}
             hover={absorbedHoverScreen}
             selectedTokenId={absorbedSelectedTokenId}
-            onClose={() => setAbsorbedSelectedTokenId(null)}
+            onClose={closeAbsorbedPanel}
           />
         ) : null}
 
