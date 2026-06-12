@@ -12,6 +12,7 @@ interface StarTooltipProps {
   group: HolderGroupStar | null;
   burnerStar: BurnerStar | null;
   showCore: boolean;
+  showZombieLeaderboard?: boolean;
   position: { x: number; y: number } | null;
   totalBurned?: number | null;
 }
@@ -77,10 +78,27 @@ export default function StarTooltip({
   group,
   burnerStar,
   showCore,
+  showZombieLeaderboard = false,
   position,
   totalBurned = null,
 }: StarTooltipProps) {
-  if (!position || (!group && !burnerStar && !showCore)) return null;
+  if (
+    !position ||
+    (!group && !burnerStar && !showCore && !showZombieLeaderboard)
+  ) {
+    return null;
+  }
+
+  if (showZombieLeaderboard && !group && !burnerStar && !showCore) {
+    return (
+      <div
+        className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-lg border border-white/10 bg-black/65 px-3 py-2 shadow-xl backdrop-blur-md"
+        style={{ left: position.x, top: position.y - 12 }}
+      >
+        <p className="text-xs font-medium text-amber-50/90">Zombie Leaderboard</p>
+      </div>
+    );
+  }
 
   if (showCore && !group && !burnerStar) {
     return (

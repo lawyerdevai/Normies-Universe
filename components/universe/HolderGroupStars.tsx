@@ -37,6 +37,7 @@ interface HolderGroupStarsProps {
   onEmptyClick: () => void;
   skipClickIfBurnerHovered?: () => boolean;
   skipHoverIfBurnerCaptured?: React.RefObject<boolean>;
+  skipHoverIfZombieCaptured?: React.RefObject<boolean>;
 }
 
 const _projected = new THREE.Vector3();
@@ -192,6 +193,7 @@ export default function HolderGroupStars({
   onEmptyClick,
   skipClickIfBurnerHovered,
   skipHoverIfBurnerCaptured,
+  skipHoverIfZombieCaptured,
 }: HolderGroupStarsProps) {
   const revealRef = useGalaxyRevealRef();
   const showVisible = debugLayers?.visible ?? true;
@@ -378,7 +380,7 @@ export default function HolderGroupStars({
       material.uniforms.uGlintSizeBoost.value = 0;
     }
 
-    if (skipHoverIfBurnerCaptured?.current) {
+    if (skipHoverIfBurnerCaptured?.current || skipHoverIfZombieCaptured?.current) {
       if (hoverRef) hoverRef.current = null;
       return;
     }
