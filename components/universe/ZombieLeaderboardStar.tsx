@@ -21,7 +21,10 @@ interface ZombieLeaderboardStarProps {
 }
 
 const POSITION = ZOMBIE_LEADERBOARD_STAR_POSITION;
-const VISUAL = zombieLeaderboardStarVisual();
+const VISUAL = {
+  ...zombieLeaderboardStarVisual(),
+  brightness: 1.0,
+};
 
 const _projected = new THREE.Vector3();
 const _viewPos = new THREE.Vector3();
