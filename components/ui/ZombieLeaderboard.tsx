@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { truncateWallet } from "@/lib/opensea/holders";
 import {
   BURNER_TIER2_COLOR,
@@ -8,6 +8,9 @@ import {
   zombieWalletSet,
   type BurnerWalletEntry,
 } from "@/lib/universe/burnerStarConfig";
+import { DEFAULT_CAMERA_DISTANCE } from "@/lib/universe/cameraConfig";
+import { HOLDER_STAR_MAX_POINT_PX } from "@/lib/universe/holderStarPointShader";
+import { visualFromHoldings } from "@/lib/universe/holderStarVisual";
 import {
   panelBody,
   panelCloseButton,
@@ -70,86 +73,139 @@ function rowTintClass(tier: LeaderboardRow["tier"]) {
   return "bg-[rgba(143,46,18,0.10)]";
 }
 
+const ZOMBIE_LEADERBOARD_STAR_SCALE = 3;
+const rank1Visual = visualFromHoldings(100, 1, 100, 1);
+const biggestGalaxyStarPx = Math.min(
+  HOLDER_STAR_MAX_POINT_PX,
+  (rank1Visual.coreSize + rank1Visual.glowSize * rank1Visual.glowOpacity) *
+    (235 / DEFAULT_CAMERA_DISTANCE),
+);
+/** 3× rank-1 holder star at default galaxy framing (same point-size formula as scene). */
+const ZOMBIE_STAR_PX = Math.round(biggestGalaxyStarPx * ZOMBIE_LEADERBOARD_STAR_SCALE);
+const ZOMBIE_STAR_CENTER = { r: 122, g: 255, b: 122 };
+const ZOMBIE_STAR_EDGE = { r: 42, g: 90, b: 46 };
+const ZOMBIE_STAR_GLOW = 0.48;
+const ZOMBIE_STAR_BASE_BRIGHTNESS = 1.5;
+
+function smoothstep(edge0: number, edge1: number, x: number) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function drawZombieStarSprite(
+  canvas: HTMLCanvasElement,
+  pulse: number,
+  hovered: boolean,
+) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const size = ZOMBIE_STAR_PX;
+  canvas.width = Math.round(size * dpr);
+  canvas.height = Math.round(size * dpr);
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+
+  const ctx = canvas.getContext("2d", { alpha: true });
+  if (!ctx) return;
+
+  const image = ctx.createImageData(canvas.width, canvas.height);
+  const data = image.data;
+  const glowMix = 10 * (1 - ZOMBIE_STAR_GLOW) + 4.5 * ZOMBIE_STAR_GLOW;
+  const brightness =
+    ZOMBIE_STAR_BASE_BRIGHTNESS + pulse * 0.32 + (hovered ? 0.18 : 0);
+
+  for (let py = 0; py < canvas.height; py++) {
+    for (let px = 0; px < canvas.width; px++) {
+      const ux = (px + 0.5) / canvas.width - 0.5;
+      const uy = (py + 0.5) / canvas.height - 0.5;
+      const dist = Math.hypot(ux, uy);
+      const idx = (py * canvas.width + px) * 4;
+
+      if (dist > 0.47) {
+        data[idx + 3] = 0;
+        continue;
+      }
+
+      const circleMask = 1 - smoothstep(0.34, 0.47, dist);
+      const skewX = ux * 1.08;
+      const skewY = uy * 0.92;
+      const core = Math.exp(-(skewX * skewX + skewY * skewY) * 72);
+      const glow =
+        Math.exp(-dist * dist * glowMix) * ZOMBIE_STAR_GLOW * 0.62;
+      const alpha = (core * 1.15 + glow) * brightness * circleMask;
+
+      if (alpha < 0.001) {
+        data[idx + 3] = 0;
+        continue;
+      }
+
+      const colorMix = Math.min(1, core * 1.35 + glow * 0.5 + 0.2);
+      const edgeWeight = Math.min(1, dist / 0.47);
+      const tint = colorMix * (1 - edgeWeight * 0.35);
+      const r =
+        (ZOMBIE_STAR_EDGE.r +
+          (ZOMBIE_STAR_CENTER.r - ZOMBIE_STAR_EDGE.r) * tint) /
+        255;
+      const g =
+        (ZOMBIE_STAR_EDGE.g +
+          (ZOMBIE_STAR_CENTER.g - ZOMBIE_STAR_EDGE.g) * tint) /
+        255;
+      const b =
+        (ZOMBIE_STAR_EDGE.b +
+          (ZOMBIE_STAR_CENTER.b - ZOMBIE_STAR_EDGE.b) * tint) /
+        255;
+      const litR = Math.min(r * (core * 1.35 + glow * 0.5 + 0.2), 1);
+      const litG = Math.min(g * (core * 1.35 + glow * 0.5 + 0.2), 1);
+      const litB = Math.min(b * (core * 1.35 + glow * 0.5 + 0.2), 1);
+
+      data[idx] = Math.round(litR * 255);
+      data[idx + 1] = Math.round(litG * 255);
+      data[idx + 2] = Math.round(litB * 255);
+      data[idx + 3] = Math.round(Math.min(alpha, 1) * 255);
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
+}
+
 function ZombieLeaderboardOrb({ onClick }: { onClick: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hoverRef = useRef(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let frame = 0;
+    const loop = (time: number) => {
+      const pulse = (Math.sin((time / 1000) * (Math.PI * 2 / 4)) + 1) * 0.5;
+      drawZombieStarSprite(canvas, pulse, hoverRef.current);
+      frame = requestAnimationFrame(loop);
+    };
+
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   return (
-    <div className="group pointer-events-auto fixed right-5 top-4 z-[35]">
+    <div className="group pointer-events-auto fixed top-[12%] right-[8%] z-[35]">
       <button
         type="button"
         onClick={onClick}
         aria-label="Open zombie leaderboard"
-        className="zombie-planet-btn relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0"
+        onMouseEnter={() => {
+          hoverRef.current = true;
+        }}
+        onMouseLeave={() => {
+          hoverRef.current = false;
+        }}
+        className="block cursor-pointer border-0 bg-transparent p-0"
+        style={{ width: ZOMBIE_STAR_PX, height: ZOMBIE_STAR_PX }}
       >
-        <span aria-hidden className="zombie-planet-glow absolute inset-0 rounded-full" />
-        <span aria-hidden className="zombie-planet-surface relative z-[1] h-14 w-14 rounded-full">
-          <span aria-hidden className="zombie-planet-texture absolute inset-0 rounded-full" />
-        </span>
+        <canvas ref={canvasRef} aria-hidden className="block h-full w-full" />
       </button>
-      <span className="pointer-events-none absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded border border-white/10 bg-black/70 px-2 py-1 text-[10px] text-white/70 opacity-0 shadow-lg backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100">
+      <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded border border-white/10 bg-black/70 px-2 py-1 text-[10px] text-white/70 opacity-0 shadow-lg backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100">
         Zombie Leaderboard
       </span>
-      <style>{`
-        .zombie-planet-surface {
-          background:
-            radial-gradient(
-              circle at 24% 22%,
-              #3a6e3a 0%,
-              rgba(58, 110, 58, 0.42) 6%,
-              transparent 18%
-            ),
-            radial-gradient(
-              circle at 68% 72%,
-              #0d1f0d 0%,
-              #1a3d1a 52%,
-              #0d1f0d 100%
-            );
-          box-shadow:
-            inset -6px -7px 14px rgba(0, 0, 0, 0.72),
-            inset 2px 2px 4px rgba(58, 110, 58, 0.12);
-        }
-
-        .zombie-planet-texture {
-          background:
-            radial-gradient(
-              ellipse 32% 18% at 55% 62%,
-              rgba(26, 61, 26, 0.35) 0%,
-              transparent 72%
-            ),
-            radial-gradient(
-              ellipse 22% 12% at 72% 38%,
-              rgba(13, 31, 13, 0.5) 0%,
-              transparent 68%
-            );
-          opacity: 0.7;
-        }
-
-        .zombie-planet-glow {
-          animation: zombie-planet-pulse 4s ease-in-out infinite;
-          box-shadow:
-            0 0 8px 4px rgba(42, 90, 42, 0.6),
-            0 0 20px 10px rgba(26, 58, 26, 0.35),
-            0 0 45px 18px rgba(10, 42, 10, 0.15);
-          transition: box-shadow 0.4s ease;
-        }
-
-        .zombie-planet-btn:hover .zombie-planet-glow {
-          box-shadow:
-            0 0 10px 5px rgba(42, 90, 42, 0.72),
-            0 0 24px 12px rgba(26, 58, 26, 0.45),
-            0 0 52px 22px rgba(10, 42, 10, 0.22);
-        }
-
-        @keyframes zombie-planet-pulse {
-          0%,
-          100% {
-            opacity: 0.78;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1.08);
-          }
-        }
-      `}</style>
     </div>
   );
 }
