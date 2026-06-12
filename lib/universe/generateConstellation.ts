@@ -102,6 +102,7 @@ function cellPosition(
 export function generateConstellation(
   pixels: string,
   tokenId: number,
+  densityMultiplier = 1,
 ): ConstellationData {
   if (pixels.length !== PIXEL_COUNT) {
     throw new Error(
@@ -127,7 +128,10 @@ export function generateConstellation(
     for (let col = 0; col < GRID_SIZE; col++) {
       if (grid[row][col] !== 1) continue;
 
-      const microCount = microCountForDensity(density, rng);
+      const microCount = Math.max(
+        1,
+        Math.round(microCountForDensity(density, rng) * densityMultiplier),
+      );
       for (let i = 0; i < microCount; i++) {
         const { x, y } = cellPosition(row, col, rng);
         stars.push({
