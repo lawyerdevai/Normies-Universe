@@ -31,15 +31,18 @@ type WalletData = {
 interface WalletDetailPanelProps {
   selection: WalletSelection | null;
   open: boolean;
+  highlightTokenId?: string | null;
   onClose: () => void;
 }
 
 function NormieThumbnail({
   id,
   onActivate,
+  highlighted,
 }: {
   id: string;
   onActivate: (id: string, event: MouseEvent<HTMLAnchorElement>) => void;
+  highlighted?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
@@ -71,8 +74,17 @@ function NormieThumbnail({
     >
       <div
         ref={ref}
-        className="relative aspect-square w-full overflow-hidden rounded-[4px] bg-white/[0.03]"
+        className={`relative aspect-square w-full overflow-hidden rounded-[4px] bg-white/[0.03] ${
+          highlighted
+            ? "shadow-[0_0_0_2px_rgba(232,244,255,0.75),0_0_12px_rgba(232,244,255,0.35)]"
+            : ""
+        }`}
       >
+        {highlighted ? (
+          <span className="normie-universe-title pointer-events-none absolute left-1 top-0.5 z-10 text-[8px] leading-none text-[#E8F4FF]/80">
+            ✦
+          </span>
+        ) : null}
         {inView ? (
           <>
             {!loaded ? (
@@ -101,6 +113,7 @@ function NormieThumbnail({
 export default function WalletDetailPanel({
   selection,
   open,
+  highlightTokenId = null,
   onClose,
 }: WalletDetailPanelProps) {
   const [walletData, setWalletData] = useState<WalletData | null>(null);
@@ -160,6 +173,20 @@ export default function WalletDetailPanel({
       (a, b) => Number(a) - Number(b) || a.localeCompare(b),
     );
   }, [walletData?.tokenIds]);
+
+  const highlightedId = useMemo(() => {
+    if (!highlightTokenId) return null;
+    const target = Number(highlightTokenId);
+    return sortedTokenIds.find((id) => Number(id) === target) ?? null;
+  }, [highlightTokenId, sortedTokenIds]);
+
+  const displayTokenIds = useMemo(() => {
+    if (!highlightedId) return sortedTokenIds;
+    return [
+      highlightedId,
+      ...sortedTokenIds.filter((id) => id !== highlightedId),
+    ];
+  }, [sortedTokenIds, highlightedId]);
 
   const handleCopy = useCallback(async () => {
     if (!wallet) return;
@@ -229,12 +256,13 @@ export default function WalletDetailPanel({
           <p className={panelEmpty}>No Normies in this wallet.</p>
         ) : null}
 
-        {sortedTokenIds.length > 0 ? (
+        {displayTokenIds.length > 0 ? (
           <div className="grid grid-cols-3 gap-1.5">
-            {sortedTokenIds.map((id) => (
+            {displayTokenIds.map((id) => (
               <NormieThumbnail
                 key={id}
                 id={id}
+                highlighted={id === highlightedId}
                 onActivate={handleThumbnailActivate}
               />
             ))}

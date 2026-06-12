@@ -477,6 +477,9 @@ export default function UniverseScene({
   const [walletSelection, setWalletSelection] = useState<WalletSelection | null>(
     null,
   );
+  const [highlightTokenId, setHighlightTokenId] = useState<string | null>(
+    null,
+  );
   const [pyreOpen, setPyreOpen] = useState(false);
   const [pyreSearchedBurn, setPyreSearchedBurn] = useState<{
     tokenId: string;
@@ -555,6 +558,7 @@ export default function UniverseScene({
   );
 
   const handleSelect = useCallback((group: HolderGroupStar) => {
+    setHighlightTokenId(null);
     setWalletSelection(holderToWalletSelection(group));
     setPyreOpen(false);
     setPyreSearchedBurn(null);
@@ -563,6 +567,7 @@ export default function UniverseScene({
 
   const handleBurnerSelect = useCallback(
     (star: BurnerStar) => {
+      setHighlightTokenId(null);
       setWalletSelection(burnerToWalletSelection(star));
       setPyreOpen(false);
       setPyreSearchedBurn(null);
@@ -579,6 +584,7 @@ export default function UniverseScene({
   }, [deactivateSearchHighlights]);
 
   const handleClosePanel = useCallback(() => {
+    setHighlightTokenId(null);
     setWalletSelection(null);
     setPyreOpen(false);
     setPyreSearchedBurn(null);
@@ -653,6 +659,7 @@ export default function UniverseScene({
           setSearchNotFound(true);
           return;
         }
+        setHighlightTokenId(null);
         activateHolderSearch(match);
         return;
       }
@@ -671,6 +678,7 @@ export default function UniverseScene({
         if (data.status === "burned") {
           deactivateSearchHighlights();
           setDimKey((k) => k + 1);
+          setHighlightTokenId(null);
           setWalletSelection(null);
           setPyreSearchedBurn({
             tokenId: data.tokenId,
@@ -690,6 +698,7 @@ export default function UniverseScene({
           setSearchNotFound(true);
           return;
         }
+        setHighlightTokenId(String(parsed.id));
         activateHolderSearch(match);
       } catch {
         setSearchNotFound(true);
@@ -798,6 +807,7 @@ export default function UniverseScene({
       <WalletDetailPanel
         selection={walletSelection}
         open={walletSelection !== null}
+        highlightTokenId={highlightTokenId}
         onClose={handleClosePanel}
       />
       <PyreDetailPanel
