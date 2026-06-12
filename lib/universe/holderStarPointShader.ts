@@ -1,5 +1,8 @@
 import * as THREE from "three";
 
+/** Point-sprite diameter clamp — matches gl_PointSize max in holder star shaders. */
+export const HOLDER_STAR_MAX_POINT_PX = 88;
+
 export const HOLDER_STAR_VERTEX_SHADER = /* glsl */ `
   attribute float aCoreSize;
   attribute float aGlowSize;
