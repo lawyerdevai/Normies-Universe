@@ -5,6 +5,10 @@ import {
   createHolderStarPointMaterial,
 } from "@/lib/universe/holderStarPointShader";
 import { createRng } from "@/lib/universe/seededRandom";
+import {
+  generateAbsorbedBurnStarsForExport,
+  type AbsorbedBurnStar,
+} from "@/lib/starform/generateAbsorbedBurnStars";
 import type {
   ConstellationData,
   ConstellationStar,
@@ -208,6 +212,58 @@ function buildFieldExportGeometry(fieldStars: FieldStar[]) {
   return geometry;
 }
 
+function buildAbsorbedExportGeometry(stars: AbsorbedBurnStar[]) {
+  const positions = new Float32Array(stars.length * 3);
+  const colors = new Float32Array(stars.length * 3);
+  const coreSizes = new Float32Array(stars.length);
+  const glowSizes = new Float32Array(stars.length);
+  const glowOpacities = new Float32Array(stars.length);
+  const sparkles = new Float32Array(stars.length);
+  const brightness = new Float32Array(stars.length);
+
+  stars.forEach((star, i) => {
+    positions[i * 3] = star.position[0];
+    positions[i * 3 + 1] = star.position[1];
+    positions[i * 3 + 2] = star.position[2];
+    colors[i * 3] = star.color.r;
+    colors[i * 3 + 1] = star.color.g;
+    colors[i * 3 + 2] = star.color.b;
+    coreSizes[i] = star.coreSize;
+    glowSizes[i] = star.glowSize;
+    glowOpacities[i] = star.glowOpacity;
+    sparkles[i] = 0;
+    brightness[i] = star.brightness * BRIGHTNESS_EXPORT_MULT;
+  });
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute("aCoreSize", new THREE.BufferAttribute(coreSizes, 1));
+  geometry.setAttribute("aGlowSize", new THREE.BufferAttribute(glowSizes, 1));
+  geometry.setAttribute(
+    "aGlowOpacity",
+    new THREE.BufferAttribute(glowOpacities, 1),
+  );
+  geometry.setAttribute("aSparkle", new THREE.BufferAttribute(sparkles, 1));
+  geometry.setAttribute(
+    "aBrightness",
+    new THREE.BufferAttribute(brightness, 1),
+  );
+
+  return geometry;
+}
+
+async function fetchAbsorbedTokenIds(tokenId: number): Promise<number[]> {
+  try {
+    const res = await fetch(`/api/normie/${tokenId}/absorbed`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { absorbedTokenIds?: number[] };
+    return Array.isArray(data.absorbedTokenIds) ? data.absorbedTokenIds : [];
+  } catch {
+    return [];
+  }
+}
+
 function normiesFontFamily(): string {
   const probe = document.createElement("span");
   probe.className = "normie-universe-title";
@@ -236,6 +292,7 @@ export async function exportConstellationImage(
   constellation: ConstellationData,
   tokenId: number,
   backgroundColor: string,
+  showAbsorbed = false,
 ): Promise<void> {
   if (constellation.stars.length === 0) return;
 
@@ -294,6 +351,25 @@ export async function exportConstellationImage(
   root.add(scaled);
   scene.add(root);
 
+  let absorbedGeometry: THREE.BufferGeometry | null = null;
+  let absorbedMaterial: THREE.Material | null = null;
+
+  if (showAbsorbed) {
+    const absorbedTokenIds = await fetchAbsorbedTokenIds(tokenId);
+    if (absorbedTokenIds.length > 0) {
+      const absorbedStars = generateAbsorbedBurnStarsForExport(
+        tokenId,
+        absorbedTokenIds,
+      );
+      absorbedGeometry = buildAbsorbedExportGeometry(absorbedStars);
+      absorbedMaterial = createHolderStarPointMaterial(true);
+      const absorbedPoints = new THREE.Points(absorbedGeometry, absorbedMaterial);
+      absorbedPoints.frustumCulled = false;
+      absorbedPoints.renderOrder = 3;
+      scene.add(absorbedPoints);
+    }
+  }
+
   renderer.render(scene, camera);
 
   const output = document.createElement("canvas");
@@ -301,6 +377,8 @@ export async function exportConstellationImage(
   output.height = EXPORT_SIZE;
   const ctx = output.getContext("2d");
   if (!ctx) {
+    absorbedGeometry?.dispose();
+    absorbedMaterial?.dispose();
     fieldGeometry.dispose();
     fieldMaterial.dispose();
     geometry.dispose();
@@ -324,6 +402,8 @@ export async function exportConstellationImage(
 
   downloadCanvas(output, tokenId);
 
+  absorbedGeometry?.dispose();
+  absorbedMaterial?.dispose();
   fieldGeometry.dispose();
   fieldMaterial.dispose();
   geometry.dispose();
