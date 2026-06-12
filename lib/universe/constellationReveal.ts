@@ -8,6 +8,10 @@ const MEDIUM_START_MAX = 3;
 const FAINT_START_MIN = 2;
 const FAINT_START_MAX = 5;
 
+/** Faint stars finish fading in at 5s + 0.3s fade. */
+export const CONSTELLATION_REVEAL_COMPLETE_MS =
+  (FAINT_START_MAX + STAR_REVEAL_FADE_SECONDS) * 1000;
+
 export function starRevealMultiplier(
   elapsed: number,
   startTime: number,
