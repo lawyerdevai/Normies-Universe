@@ -219,6 +219,34 @@ function ZombieLeaderboardPanel({
   rows: LeaderboardRow[];
   onClose: () => void;
 }) {
+  const [usernames, setUsernames] = useState<Record<string, string | null>>({});
+
+  useEffect(() => {
+    if (!open || rows.length === 0) return;
+
+    setUsernames({});
+    let cancelled = false;
+
+    fetch("/api/opensea/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addresses: rows.map((row) => row.address) }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json() as Promise<Record<string, string | null>>;
+      })
+      .then((data) => {
+        if (cancelled || !data) return;
+        setUsernames(data);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, rows]);
+
   return (
     <aside aria-hidden={!open} className={panelShell(open)}>
       <div className={panelHeader}>
@@ -251,8 +279,14 @@ function ZombieLeaderboardPanel({
                 <span className="w-6 shrink-0 text-[10px] tabular-nums text-white/40">
                   #{row.rank}
                 </span>
-                <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-white/55">
-                  {row.walletDisplay}
+                <span
+                  className={`min-w-0 flex-1 truncate text-[10px] ${
+                    usernames[row.address]
+                      ? "text-white/72"
+                      : "font-mono text-white/55"
+                  }`}
+                >
+                  {usernames[row.address] ?? row.walletDisplay}
                 </span>
                 <span className="shrink-0 text-[10px] tabular-nums text-white/50">
                   {row.burnedCount.toLocaleString()}
