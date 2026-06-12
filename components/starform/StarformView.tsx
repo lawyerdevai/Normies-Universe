@@ -203,11 +203,11 @@ export default function StarformView({ tokenId }: StarformViewProps) {
     if (state.status !== "ready" || exporting) return;
     setExporting(true);
     try {
-      await exportConstellationImage(state.constellation, tokenId);
+      await exportConstellationImage(state.constellation, tokenId, backgroundColor);
     } finally {
       setExporting(false);
     }
-  }, [exporting, state, tokenId]);
+  }, [backgroundColor, exporting, state, tokenId]);
 
   return (
     <div

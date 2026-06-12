@@ -12,7 +12,6 @@ import type {
 } from "@/lib/universe/generateConstellation";
 
 const EXPORT_SIZE = 1200;
-const EXPORT_BACKGROUND = "#080d18";
 const BRIGHTNESS_EXPORT_MULT = 1.5;
 const FRAME_FRACTION = 0.7;
 const GRID_SIZE = 40;
@@ -236,6 +235,7 @@ function downloadCanvas(canvas: HTMLCanvasElement, tokenId: number) {
 export async function exportConstellationImage(
   constellation: ConstellationData,
   tokenId: number,
+  backgroundColor: string,
 ): Promise<void> {
   if (constellation.stars.length === 0) return;
 
@@ -245,10 +245,10 @@ export async function exportConstellationImage(
     preserveDrawingBuffer: true,
   });
   renderer.setSize(EXPORT_SIZE, EXPORT_SIZE);
-  renderer.setClearColor(EXPORT_BACKGROUND, 1);
+  renderer.setClearColor(backgroundColor, 1);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(EXPORT_BACKGROUND);
+  scene.background = new THREE.Color(backgroundColor);
 
   const camera = new THREE.PerspectiveCamera(
     DEFAULT_CAMERA_FOV,
