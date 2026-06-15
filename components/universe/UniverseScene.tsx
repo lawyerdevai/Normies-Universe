@@ -866,7 +866,6 @@ export default function UniverseScene({
         onClose={handleClosePanel}
       />
       <ZombieLeaderboard
-        burners={burnerData?.burners ?? null}
         open={zombieLeaderboardOpen}
         onClose={handleClosePanel}
       />
