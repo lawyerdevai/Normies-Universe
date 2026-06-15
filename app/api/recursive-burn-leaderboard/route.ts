@@ -7,16 +7,13 @@ import {
 } from "@/lib/recursiveBurn/fetchRecursiveBurnHolders";
 
 export async function GET() {
-  const apiKey = process.env.OPENSEA_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "OPENSEA_API_KEY is not configured" },
-      { status: 500 },
-    );
-  }
-
   try {
+    const apiKey = process.env.OPENSEA_API_KEY;
+
+    if (!apiKey) {
+      throw new Error("OPENSEA_API_KEY is not configured");
+    }
+
     const holders = await fetchRecursiveBurnHolders(50);
     const addresses = holders.items.map((item) => item.wallet);
     const usernames = await fetchOpenSeaAccountUsernames(addresses, apiKey);
@@ -42,10 +39,9 @@ export async function GET() {
       },
     );
   } catch (error) {
+    console.error("[recursive-burn-leaderboard]", error);
     const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to fetch recursive burn leaderboard";
+      error instanceof Error ? error.message : "Failed to fetch recursive burn leaderboard";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
