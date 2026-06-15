@@ -9,7 +9,7 @@ import {
   panelShell,
 } from "@/components/ui/panelStyles";
 
-type LeaderboardRow = {
+type LeaderboardItem = {
   rank: number;
   wallet: string;
   walletDisplay: string;
@@ -17,11 +17,19 @@ type LeaderboardRow = {
   totalRecursiveBurnCount: number;
 };
 
-function formatUpdatedAt(value: string | number): string {
-  const date =
-    typeof value === "number"
-      ? new Date(value < 1e12 ? value * 1000 : value)
-      : new Date(value);
+type LeaderboardResponse = {
+  updatedAt: number;
+  totalWallets: number;
+  items: LeaderboardItem[];
+};
+
+interface ZombieLeaderboardProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+function formatUpdatedAt(value: number): string {
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString(undefined, {
     month: "short",
@@ -32,58 +40,12 @@ function formatUpdatedAt(value: string | number): string {
   });
 }
 
-function parseLeaderboardResponse(data: unknown): {
-  rows: LeaderboardRow[];
-  updatedAt: string | number | null;
-} {
-  if (!data || typeof data !== "object") {
-    throw new Error("Invalid leaderboard response");
-  }
-
-  const payload = data as Record<string, unknown>;
-
-  if (typeof payload.error === "string") {
-    throw new Error(payload.error);
-  }
-
-  if (!Array.isArray(payload.items)) {
-    throw new Error("Invalid leaderboard items");
-  }
-
-  const rows = payload.items.map((item, index) => {
-    const row = item as Record<string, unknown>;
-    const wallet = String(row.wallet ?? "");
-    const burnCount = row.totalRecursiveBurnCount;
-
-    return {
-      rank: typeof row.rank === "number" ? row.rank : index + 1,
-      wallet,
-      walletDisplay: String(row.walletDisplay ?? wallet),
-      username: typeof row.username === "string" ? row.username : null,
-      totalRecursiveBurnCount:
-        typeof burnCount === "number" ? burnCount : Number(burnCount ?? 0),
-    };
-  });
-
-  const updatedAt =
-    typeof payload.updatedAt === "number" || typeof payload.updatedAt === "string"
-      ? payload.updatedAt
-      : null;
-
-  return { rows, updatedAt };
-}
-
-interface ZombieLeaderboardProps {
-  open: boolean;
-  onClose: () => void;
-}
-
 export default function ZombieLeaderboard({
   open,
   onClose,
 }: ZombieLeaderboardProps) {
-  const [rows, setRows] = useState<LeaderboardRow[]>([]);
-  const [updatedAt, setUpdatedAt] = useState<string | number | null>(null);
+  const [rows, setRows] = useState<LeaderboardItem[]>([]);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
@@ -95,23 +57,11 @@ export default function ZombieLeaderboard({
     setError(false);
 
     fetch("/api/recursive-burn-leaderboard")
-      .then(async (res) => {
-        const data: unknown = await res.json();
-        if (!res.ok) {
-          const message =
-            data &&
-            typeof data === "object" &&
-            typeof (data as { error?: unknown }).error === "string"
-              ? (data as { error: string }).error
-              : "Request failed";
-          throw new Error(message);
-        }
-        return parseLeaderboardResponse(data);
-      })
-      .then(({ rows: nextRows, updatedAt: nextUpdatedAt }) => {
+      .then((res) => res.json())
+      .then((data: LeaderboardResponse) => {
         if (cancelled) return;
-        setRows(nextRows);
-        setUpdatedAt(nextUpdatedAt);
+        setRows(data.items ?? []);
+        setUpdatedAt(data.updatedAt ?? null);
       })
       .catch(() => {
         if (cancelled) return;
@@ -128,7 +78,7 @@ export default function ZombieLeaderboard({
     };
   }, [open]);
 
-  const updatedLabel = updatedAt ? formatUpdatedAt(updatedAt) : null;
+  const updatedLabel = updatedAt != null ? formatUpdatedAt(updatedAt) : null;
 
   return (
     <aside aria-hidden={!open} className={panelShell(open)}>
